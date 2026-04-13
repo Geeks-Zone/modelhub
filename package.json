@@ -60,7 +60,7 @@
     "fast-xml-parser": "^5.3.1",
     "highlight.js": "^11.11.1",
     "hono": "^4.7.5",
-    "jsdom": "^26.1.0",
+    "jsdom": "^29.0.2",
     "jszip": "^3.10.1",
     "katex": "^0.16.45",
     "lucide-react": "^1.6.0",
