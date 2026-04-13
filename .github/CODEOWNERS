@@ -1,0 +1,31 @@
+# Code Owners
+# Estes usuários serão automaticamente solicitados para revisão quando alguém abrir um PR
+
+# Global owners
+* @seu-usuario
+
+# Documentação
+*.md @seu-usuario
+docs/ @seu-usuario
+
+# Configuração
+.github/ @seu-usuario
+*.yml @seu-usuario
+*.yaml @seu-usuario
+*.json @seu-usuario
+
+# Infraestrutura
+Dockerfile @seu-usuario
+docker-compose.yml @seu-usuario
+vercel.json @seu-usuario
+
+# Database
+prisma/ @seu-usuario
+
+# Core
+/lib/ @seu-usuario
+/server/ @seu-usuario
+
+# Frontend
+/components/ @seu-usuario
+/app/ @seu-usuario

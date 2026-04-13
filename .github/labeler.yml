@@ -1,0 +1,45 @@
+# Configuração de labels automáticos para PRs
+
+documentation:
+  - '**/*.md'
+  - 'docs/**/*'
+
+dependencies:
+  - 'package.json'
+  - 'pnpm-lock.yaml'
+  - 'package-lock.json'
+  - 'yarn.lock'
+
+frontend:
+  - 'components/**/*'
+  - 'app/**/*.tsx'
+  - 'app/**/*.jsx'
+  - '**/*.css'
+
+backend:
+  - 'server/**/*'
+  - 'lib/**/*'
+  - 'app/api/**/*'
+
+database:
+  - 'prisma/**/*'
+
+tests:
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/*.spec.ts'
+  - '**/*.spec.tsx'
+  - 'vitest.config.ts'
+
+ci-cd:
+  - '.github/**/*'
+  - 'Dockerfile'
+  - 'docker-compose.yml'
+  - 'vercel.json'
+
+configuration:
+  - '*.config.*'
+  - '.env.example'
+  - 'tsconfig.json'
+  - '.prettierrc'
+  - '.editorconfig'
