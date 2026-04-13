@@ -97,9 +97,9 @@ done
 # 9. Verificar URLs
 echo ""
 echo "🔗 Verificando URLs..."
-if grep -r "seu-usuario" . --exclude-dir={node_modules,.next,dist,build} > /dev/null 2>&1; then
-    echo -e "${YELLOW}⚠${NC}  Encontradas URLs com 'seu-usuario' - atualize antes de publicar"
-    grep -r "seu-usuario" . --exclude-dir={node_modules,.next,dist,build} | head -5
+if grep -r "actus7" . --exclude-dir={node_modules,.next,dist,build} > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠${NC}  Encontradas URLs com 'actus7' - atualize antes de publicar"
+    grep -r "actus7" . --exclude-dir={node_modules,.next,dist,build} | head -5
 else
     echo -e "${GREEN}✓${NC} URLs verificadas"
 fi
@@ -142,7 +142,7 @@ echo ""
 echo -e "${GREEN}✅ Projeto pronto para release!${NC}"
 echo ""
 echo "📋 Próximos passos:"
-echo "   1. Atualize URLs (seu-usuario → seu username)"
+echo "   1. Atualize URLs (actus7 → seu username)"
 echo "   2. Adicione screenshots ao README"
 echo "   3. Configure .env se necessário"
 echo "   4. Commit e push"

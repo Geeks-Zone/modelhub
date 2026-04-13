@@ -7,7 +7,7 @@ param(
 )
 
 Write-Host "`n🔄 Atualizando URLs..." -ForegroundColor Cyan
-Write-Host "   seu-usuario → $Username`n" -ForegroundColor Yellow
+Write-Host "   actus7 → $Username`n" -ForegroundColor Yellow
 
 # Arquivos a atualizar
 $files = @(
@@ -55,7 +55,7 @@ $count = 0
 foreach ($file in $files) {
     if (Test-Path $file) {
         $content = Get-Content $file -Raw -Encoding UTF8
-        $newContent = $content -replace 'seu-usuario', $Username
+        $newContent = $content -replace 'actus7', $Username
         
         if ($content -ne $newContent) {
             Set-Content $file $newContent -Encoding UTF8 -NoNewline

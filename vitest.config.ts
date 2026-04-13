@@ -16,5 +16,22 @@ export default defineConfig({
       "apps/**",
       "packages/**",
     ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov", "json-summary"],
+      include: ["lib/**/*.ts", "server/**/*.ts"],
+      exclude: [
+        "**/*.test.ts",
+        "**/*.d.ts",
+        "server/tests/**",
+        "generated/**",
+      ],
+      thresholds: {
+        statements: 50,
+        branches: 50,
+        functions: 50,
+        lines: 50,
+      },
+    },
   },
 });

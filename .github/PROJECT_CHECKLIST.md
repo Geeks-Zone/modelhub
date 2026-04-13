@@ -103,14 +103,14 @@ pnpm dev           # Desenvolvimento
 Adicione ao README.md:
 
 ```markdown
-![CI](https://github.com/seu-usuario/modelhub/workflows/CI/badge.svg)
+![CI](https://github.com/actus7/modelhub/workflows/CI/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
-![GitHub Stars](https://img.shields.io/github/stars/seu-usuario/modelhub)
-![GitHub Forks](https://img.shields.io/github/forks/seu-usuario/modelhub)
-![GitHub Issues](https://img.shields.io/github/issues/seu-usuario/modelhub)
+![GitHub Stars](https://img.shields.io/github/stars/actus7/modelhub)
+![GitHub Forks](https://img.shields.io/github/forks/actus7/modelhub)
+![GitHub Issues](https://img.shields.io/github/issues/actus7/modelhub)
 ```
 
 ## 🚀 Deploy
@@ -126,7 +126,7 @@ Adicione ao README.md:
 ### Antes de Tornar Público
 
 - [ ] Revisar todos os arquivos .md
-- [ ] Atualizar URLs (substituir "seu-usuario")
+- [ ] Atualizar URLs (substituir "actus7")
 - [ ] Testar instalação do zero
 - [ ] Testar todos os workflows
 - [ ] Verificar se não há credenciais expostas

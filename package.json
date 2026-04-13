@@ -6,12 +6,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/seu-usuario/modelhub.git"
+    "url": "https://github.com/actus7/modelhub.git"
   },
   "bugs": {
-    "url": "https://github.com/seu-usuario/modelhub/issues"
+    "url": "https://github.com/actus7/modelhub/issues"
   },
-  "homepage": "https://github.com/seu-usuario/modelhub#readme",
+  "homepage": "https://github.com/actus7/modelhub#readme",
   "keywords": [
     "ai",
     "llm",
@@ -46,6 +46,7 @@
     "prisma:push": "prisma db push --config prisma.config.ts",
     "start": "next start",
     "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
     "test:duckai-live": "node scripts/run-duckai-live-test.mjs",
     "typecheck": "tsc --noEmit"
   },
@@ -61,6 +62,7 @@
     "hono": "^4.7.5",
     "jsdom": "^26.1.0",
     "jszip": "^3.10.1",
+    "katex": "^0.16.45",
     "lucide-react": "^1.6.0",
     "next": "16.2.1",
     "next-themes": "^0.4.6",
@@ -89,6 +91,7 @@
     "@types/pg": "^8.11.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^3.2.4",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",

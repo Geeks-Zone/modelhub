@@ -197,13 +197,13 @@ cat docs/QUICKSTART.md
 ### 2. Atualizar URLs (5 min)
 
 Substituir em todos os arquivos:
-- `seu-usuario` → seu username real do GitHub
+- `actus7` → seu username real do GitHub
 - `modelhub.dev` → seu domínio (se tiver)
 - Emails de exemplo → emails reais
 
 ```bash
 # Buscar todas as ocorrências
-grep -r "seu-usuario" .
+grep -r "actus7" .
 grep -r "modelhub.dev" .
 ```
 
@@ -218,7 +218,7 @@ grep -r "modelhub.dev" .
 
 ```bash
 # Em um diretório limpo
-git clone https://github.com/seu-usuario/modelhub.git
+git clone https://github.com/actus7/modelhub.git
 cd modelhub
 pnpm install
 # Seguir QUICKSTART.md

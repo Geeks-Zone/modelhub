@@ -2,30 +2,30 @@
 # Estes usuários serão automaticamente solicitados para revisão quando alguém abrir um PR
 
 # Global owners
-* @seu-usuario
+* @actus7
 
 # Documentação
-*.md @seu-usuario
-docs/ @seu-usuario
+*.md @actus7
+docs/ @actus7
 
 # Configuração
-.github/ @seu-usuario
-*.yml @seu-usuario
-*.yaml @seu-usuario
-*.json @seu-usuario
+.github/ @actus7
+*.yml @actus7
+*.yaml @actus7
+*.json @actus7
 
 # Infraestrutura
-Dockerfile @seu-usuario
-docker-compose.yml @seu-usuario
-vercel.json @seu-usuario
+Dockerfile @actus7
+docker-compose.yml @actus7
+vercel.json @actus7
 
 # Database
-prisma/ @seu-usuario
+prisma/ @actus7
 
 # Core
-/lib/ @seu-usuario
-/server/ @seu-usuario
+/lib/ @actus7
+/server/ @actus7
 
 # Frontend
-/components/ @seu-usuario
-/app/ @seu-usuario
+/components/ @actus7
+/app/ @actus7

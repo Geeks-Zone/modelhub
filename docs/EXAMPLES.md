@@ -14,7 +14,7 @@ Exemplos práticos de como usar o ModelHub em diferentes cenários.
 ### Chat Simples
 
 ```bash
-curl -X POST https://seu-modelhub.com/v1/chat/completions \
+curl -X POST https://your-modelhub.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -28,7 +28,7 @@ curl -X POST https://seu-modelhub.com/v1/chat/completions \
 ### Chat com Sistema
 
 ```bash
-curl -X POST https://seu-modelhub.com/v1/chat/completions \
+curl -X POST https://your-modelhub.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -51,7 +51,7 @@ curl -X POST https://seu-modelhub.com/v1/chat/completions \
 ### Streaming
 
 ```bash
-curl -X POST https://seu-modelhub.com/v1/chat/completions \
+curl -X POST https://your-modelhub.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -66,7 +66,7 @@ curl -X POST https://seu-modelhub.com/v1/chat/completions \
 ### Listar Modelos
 
 ```bash
-curl https://seu-modelhub.com/v1/models \
+curl https://your-modelhub.com/v1/models \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -79,7 +79,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 response = client.chat.completions.create(
@@ -99,7 +99,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 stream = client.chat.completions.create(
@@ -139,7 +139,7 @@ import time
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 models = ["gpt-4", "claude-3-5-sonnet-20241022", "gemini-2.0-flash-exp"]
@@ -170,7 +170,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'YOUR_API_KEY',
-  baseURL: 'https://seu-modelhub.com/v1'
+  baseURL: 'https://your-modelhub.com/v1'
 });
 
 async function chat() {
@@ -194,7 +194,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'YOUR_API_KEY',
-  baseURL: 'https://seu-modelhub.com/v1'
+  baseURL: 'https://your-modelhub.com/v1'
 });
 
 async function streamChat() {
@@ -223,7 +223,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_API_KEY!,
-  baseURL: 'https://seu-modelhub.com/v1',
+  baseURL: 'https://your-modelhub.com/v1',
   dangerouslyAllowBrowser: true // Apenas para demo
 });
 
@@ -277,7 +277,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 def support_bot(user_message: str, conversation_history: list):
@@ -398,7 +398,7 @@ from langchain.schema import HumanMessage, SystemMessage
 
 llm = ChatOpenAI(
     openai_api_key="YOUR_API_KEY",
-    openai_api_base="https://seu-modelhub.com/v1",
+    openai_api_base="https://your-modelhub.com/v1",
     model_name="gpt-4"
 )
 
@@ -418,7 +418,7 @@ from llama_index.llms import OpenAI
 
 llm = OpenAI(
     api_key="YOUR_API_KEY",
-    api_base="https://seu-modelhub.com/v1",
+    api_base="https://your-modelhub.com/v1",
     model="gpt-4"
 )
 
@@ -434,7 +434,7 @@ from openai import OpenAI
 
 client_openai = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 intents = discord.Intents.default()
@@ -469,7 +469,7 @@ app = App(token="YOUR_SLACK_TOKEN")
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 @app.message("hello")

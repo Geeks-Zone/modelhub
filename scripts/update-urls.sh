@@ -14,7 +14,7 @@ fi
 USERNAME=$1
 
 echo "🔄 Atualizando URLs..."
-echo "   seu-usuario → $USERNAME"
+echo "   actus7 → $USERNAME"
 echo ""
 
 # Arquivos a atualizar
@@ -48,7 +48,7 @@ done
 echo "✏️  Atualizando arquivos..."
 for file in "${files[@]}"; do
     if [ -f "$file" ]; then
-        sed -i "s/seu-usuario/$USERNAME/g" "$file"
+        sed -i "s/actus7/$USERNAME/g" "$file"
         echo "   ✓ $file"
     fi
 done

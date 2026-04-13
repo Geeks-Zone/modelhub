@@ -12,7 +12,7 @@ Authorization: Bearer YOUR_API_KEY
 
 ### Obter API Key
 
-1. Faça login em https://seu-modelhub.com
+1. Faça login em https://your-modelhub.com
 2. Vá para Settings → API Keys
 3. Clique em "Create New Key"
 4. Copie e guarde sua chave (não será mostrada novamente)
@@ -20,7 +20,7 @@ Authorization: Bearer YOUR_API_KEY
 ## 📋 Base URL
 
 ```
-https://seu-modelhub.com/v1
+https://your-modelhub.com/v1
 ```
 
 ## 🚀 Endpoints
@@ -210,7 +210,7 @@ Authorization: Bearer YOUR_API_KEY
 ### cURL
 
 ```bash
-curl https://seu-modelhub.com/v1/chat/completions \
+curl https://your-modelhub.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -228,7 +228,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://seu-modelhub.com/v1"
+    base_url="https://your-modelhub.com/v1"
 )
 
 response = client.chat.completions.create(
@@ -248,7 +248,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'YOUR_API_KEY',
-  baseURL: 'https://seu-modelhub.com/v1'
+  baseURL: 'https://your-modelhub.com/v1'
 });
 
 const response = await client.chat.completions.create({
@@ -311,7 +311,7 @@ for await (const chunk of stream) {
 ## 📊 Uso e Custos
 
 Monitore seu uso em:
-- Dashboard: https://seu-modelhub.com/dashboard
+- Dashboard: https://your-modelhub.com/dashboard
 - API: `GET /v1/usage`
 
 ## 🔒 Segurança
@@ -333,7 +333,7 @@ Como a API é compatível com OpenAI, você pode usar qualquer SDK OpenAI:
 ## 🆘 Suporte
 
 - Documentação: https://docs.modelhub.dev
-- Issues: https://github.com/seu-usuario/modelhub/issues
+- Issues: https://github.com/actus7/modelhub/issues
 - Email: api@modelhub.dev
 
 ---

@@ -302,10 +302,10 @@ vercel --prod
 docker login
 
 # Tag
-docker tag modelhub:latest seu-usuario/modelhub:latest
+docker tag modelhub:latest actus7/modelhub:latest
 
 # Push
-docker push seu-usuario/modelhub:latest
+docker push actus7/modelhub:latest
 ```
 
 ## 📱 Redes Sociais
