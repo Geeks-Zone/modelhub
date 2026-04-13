@@ -103,9 +103,9 @@ foreach ($file in $files) {
 
 # 8. Verificar URLs
 Write-Host "`n🔗 Verificando URLs..." -ForegroundColor Cyan
-$seuUsuario = Select-String -Path "README.md","package.json" -Pattern "actus7" -SimpleMatch
+$seuUsuario = Select-String -Path "README.md","package.json" -Pattern "Geeks-Zone" -SimpleMatch
 if ($seuUsuario) {
-    Write-Host "⚠ Encontradas URLs com 'actus7' - atualize antes de publicar" -ForegroundColor Yellow
+    Write-Host "⚠ Encontradas URLs com 'Geeks-Zone' - atualize antes de publicar" -ForegroundColor Yellow
     Write-Host "  Execute: .\scripts\update-urls.ps1 -Username SEU_USERNAME" -ForegroundColor White
 } else {
     Write-Host "✓ URLs verificadas" -ForegroundColor Green

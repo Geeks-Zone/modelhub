@@ -8,7 +8,7 @@ Seu projeto está **100% organizado** e pronto para ser publicado! Todos os arqu
 
 ### Passo 1: Atualizar URLs (2 minutos)
 
-**Você precisa substituir "actus7" pelo seu username do GitHub.**
+**Você precisa substituir "Geeks-Zone" pelo seu username do GitHub.**
 
 Execute no PowerShell:
 
@@ -206,7 +206,7 @@ Isso vai verificar:
 
 Antes de anunciar, verifique:
 
-- [ ] URLs atualizadas (actus7 → seu username)
+- [ ] URLs atualizadas (Geeks-Zone → seu username)
 - [ ] Repositório criado no GitHub
 - [ ] Código commitado e pushed
 - [ ] Release v1.0.0 criada

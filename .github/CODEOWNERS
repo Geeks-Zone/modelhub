@@ -2,30 +2,30 @@
 # Estes usuários serão automaticamente solicitados para revisão quando alguém abrir um PR
 
 # Global owners
-* @actus7
+* @Geeks-Zone
 
 # Documentação
-*.md @actus7
-docs/ @actus7
+*.md @Geeks-Zone
+docs/ @Geeks-Zone
 
 # Configuração
-.github/ @actus7
-*.yml @actus7
-*.yaml @actus7
-*.json @actus7
+.github/ @Geeks-Zone
+*.yml @Geeks-Zone
+*.yaml @Geeks-Zone
+*.json @Geeks-Zone
 
 # Infraestrutura
-Dockerfile @actus7
-docker-compose.yml @actus7
-vercel.json @actus7
+Dockerfile @Geeks-Zone
+docker-compose.yml @Geeks-Zone
+vercel.json @Geeks-Zone
 
 # Database
-prisma/ @actus7
+prisma/ @Geeks-Zone
 
 # Core
-/lib/ @actus7
-/server/ @actus7
+/lib/ @Geeks-Zone
+/server/ @Geeks-Zone
 
 # Frontend
-/components/ @actus7
-/app/ @actus7
+/components/ @Geeks-Zone
+/app/ @Geeks-Zone

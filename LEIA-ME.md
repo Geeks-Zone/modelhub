@@ -71,7 +71,7 @@ modelhub/
 
 ### 1️⃣ Atualizar URLs (5 minutos)
 
-Substitua `actus7` pelo seu username do GitHub:
+Substitua `Geeks-Zone` pelo seu username do GitHub:
 
 **Opção A - Automático (Linux/Mac):**
 ```bash
@@ -81,7 +81,7 @@ chmod +x scripts/update-urls.sh
 
 **Opção B - Manual:**
 Busque e substitua em todos os arquivos:
-- `actus7` → seu username real
+- `Geeks-Zone` → seu username real
 - `modelhub.dev` → seu domínio (se tiver)
 
 ### 2️⃣ Adicionar Conteúdo Visual (30 minutos)
@@ -222,7 +222,7 @@ Seu projeto agora tem:
 
 Antes de anunciar:
 
-- [ ] URLs atualizadas (actus7 → seu username)
+- [ ] URLs atualizadas (Geeks-Zone → seu username)
 - [ ] Screenshots adicionados ao README
 - [ ] Instalação testada do zero
 - [ ] Workflows do GitHub funcionando

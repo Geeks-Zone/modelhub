@@ -8,13 +8,13 @@
 
 **Hub unificado para múltiplos modelos de IA com API compatível OpenAI**
 
-[![CI](https://github.com/actus7/modelhub/actions/workflows/ci.yml/badge.svg)](https://github.com/actus7/modelhub/actions/workflows/ci.yml)
+[![CI](https://github.com/Geeks-Zone/modelhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Geeks-Zone/modelhub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16.2-black)](https://nextjs.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/actus7/modelhub/pulls)
-[![GitHub Stars](https://img.shields.io/github/stars/actus7/modelhub)](https://github.com/actus7/modelhub/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Geeks-Zone/modelhub/pulls)
+[![GitHub Stars](https://img.shields.io/github/stars/Geeks-Zone/modelhub)](https://github.com/Geeks-Zone/modelhub/stargazers)
 
 [Funcionalidades](#-funcionalidades) •
 [Demo](#-demo) •
@@ -81,7 +81,7 @@ ModelHub é uma plataforma open-source que unifica o acesso a múltiplos provedo
 
 ```bash
 # Clone o repositório
-git clone https://github.com/actus7/modelhub.git
+git clone https://github.com/Geeks-Zone/modelhub.git
 cd modelhub
 
 # Instale as dependências
@@ -112,7 +112,7 @@ docker run -p 3000:3000 --env-file .env modelhub
 
 ### ☁️ Deploy na Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/actus7/modelhub)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Geeks-Zone/modelhub)
 
 1. Clique no botão acima
 2. Configure as variáveis de ambiente
@@ -235,7 +235,7 @@ Este projeto adota o [Contributor Covenant](CODE_OF_CONDUCT.md). Ao participar, 
 
 ## 🐛 Reportar Bugs
 
-Encontrou um bug? Por favor, abra uma [issue](https://github.com/actus7/modelhub/issues) com:
+Encontrou um bug? Por favor, abra uma [issue](https://github.com/Geeks-Zone/modelhub/issues) com:
 
 - Descrição clara do problema
 - Passos para reproduzir
@@ -258,7 +258,7 @@ Este projeto está licenciado sob a Licença MIT - veja [LICENSE](LICENSE) para 
 - [Neon](https://neon.tech/) - PostgreSQL Serverless
 - [shadcn/ui](https://ui.shadcn.com/) - Componentes UI
 - [Hono](https://hono.dev/) - Framework web
-- Todos os [contribuidores](https://github.com/actus7/modelhub/graphs/contributors)
+- Todos os [contribuidores](https://github.com/Geeks-Zone/modelhub/graphs/contributors)
 
 ## 📞 Suporte
 

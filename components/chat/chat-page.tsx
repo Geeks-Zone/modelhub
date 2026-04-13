@@ -26,7 +26,6 @@ import {
   RefreshCwIcon,
   SendHorizontalIcon,
   Settings2Icon,
-  LinkIcon,
   PlayIcon,
   ShareIcon,
   ShieldOffIcon,

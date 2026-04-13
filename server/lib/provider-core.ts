@@ -99,6 +99,15 @@ type AccumulatedToolCall = {
   function: { name: string; arguments: string }
 }
 
+type UserSettingsRecord = {
+  customInstructionsAbout: string | null
+  customInstructionsStyle: string | null
+}
+
+type UserMemoryRecord = {
+  content: string
+}
+
 const MAX_MESSAGES = 50
 const MAX_PARTS_PER_MESSAGE = 64
 const MAX_MESSAGE_TEXT_LENGTH = 20_000
@@ -341,14 +350,20 @@ export async function resolveMessagesForProvider(input: {
   // Inject custom instructions and memories as a system message
   const resolvedMessages: ChatMessage[] = []
   if (input.userId) {
+    const findUserSettings = prisma.userSettings?.findUnique?.bind(prisma.userSettings)
+    const findUserMemories = prisma.userMemory?.findMany?.bind(prisma.userMemory)
     const [userSettings, userMemories] = await Promise.all([
-      prisma.userSettings.findUnique({ where: { userId: input.userId } }),
-      prisma.userMemory.findMany({
-        where: { userId: input.userId },
-        select: { content: true },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
+      findUserSettings
+        ? findUserSettings({ where: { userId: input.userId } })
+        : Promise.resolve<UserSettingsRecord | null>(null),
+      findUserMemories
+        ? findUserMemories({
+            where: { userId: input.userId },
+            select: { content: true },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+          })
+        : Promise.resolve<UserMemoryRecord[]>([]),
     ])
 
     const systemParts: string[] = []

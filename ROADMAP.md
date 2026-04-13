@@ -216,7 +216,7 @@ Features mais solicitadas pela comunidade:
 Quer ajudar a construir o futuro do ModelHub?
 
 1. **Vote em features**: Reaja com 👍 nas issues
-2. **Sugira features**: Abra uma [feature request](https://github.com/actus7/modelhub/issues/new?template=feature_request.md)
+2. **Sugira features**: Abra uma [feature request](https://github.com/Geeks-Zone/modelhub/issues/new?template=feature_request.md)
 3. **Contribua com código**: Veja [CONTRIBUTING.md](CONTRIBUTING.md)
 4. **Patrocine**: Ajude a financiar o desenvolvimento
 
@@ -267,7 +267,7 @@ Quer ajudar a construir o futuro do ModelHub?
 
 Tem sugestões para o roadmap?
 
-- Abra uma [Discussion](https://github.com/actus7/modelhub/discussions)
+- Abra uma [Discussion](https://github.com/Geeks-Zone/modelhub/discussions)
 - Comente em issues existentes
 - Entre no [Discord](https://discord.gg/modelhub)
 

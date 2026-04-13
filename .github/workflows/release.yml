@@ -80,7 +80,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: actus7/modelhub
+          images: Geeks-Zone/modelhub
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
