@@ -1,0 +1,16 @@
+node_modules
+.next
+dist
+coverage
+.env
+.env*
+.git
+.gitignore
+.dockerignore
+.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+apps/web/.next
+apps/api/generated/prisma

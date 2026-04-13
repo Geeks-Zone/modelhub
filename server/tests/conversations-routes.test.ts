@@ -1,0 +1,362 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ConversationAttachmentDescriptor } from "@/lib/chat-parts";
+
+const getSession = vi.fn();
+
+type ConversationRecord = {
+  createdAt: Date;
+  id: string;
+  modelId: string | null;
+  providerId: string | null;
+  title: string;
+  updatedAt: Date;
+  userId: string;
+};
+
+type MessageRecord = {
+  content: string;
+  conversationId: string;
+  createdAt: Date;
+  id: string;
+  parts: unknown;
+  role: string;
+};
+
+type AttachmentRecord = {
+  blob: Uint8Array<ArrayBuffer>;
+  byteSize: number;
+  conversationId: string;
+  createdAt: Date;
+  extractedText: string | null;
+  extractionStatus: string;
+  fileName: string;
+  id: string;
+  kind: string;
+  messageId: string | null;
+  mimeType: string;
+};
+
+let conversationCounter = 1;
+let messageCounter = 1;
+let attachmentCounter = 1;
+
+const state: {
+  attachments: AttachmentRecord[];
+  conversations: ConversationRecord[];
+  messages: MessageRecord[];
+} = {
+  attachments: [],
+  conversations: [],
+  messages: [],
+};
+
+function now() {
+  return new Date("2026-03-28T12:00:00.000Z");
+}
+
+function resetState() {
+  conversationCounter = 1;
+  messageCounter = 1;
+  attachmentCounter = 1;
+  state.attachments = [];
+  state.conversations = [{
+    createdAt: now(),
+    id: "conv-1",
+    modelId: "openai/gpt-4.1-mini",
+    providerId: "openrouter",
+    title: "Nova conversa",
+    updatedAt: now(),
+    userId: "user-1",
+  }];
+  state.messages = [];
+}
+
+const mockPrisma = {
+  $transaction: vi.fn(async (input: unknown) => {
+    if (typeof input === "function") {
+      return input(mockPrisma);
+    }
+
+    if (Array.isArray(input)) {
+      return Promise.all(input);
+    }
+
+    return input;
+  }),
+  apiKey: {
+    findFirst: vi.fn().mockResolvedValue(null),
+    update: vi.fn().mockResolvedValue(null),
+  },
+  conversation: {
+    create: vi.fn(async ({ data, select }: { data: Partial<ConversationRecord>; select?: Record<string, boolean> }) => {
+      const conversation: ConversationRecord = {
+        createdAt: now(),
+        id: `conv-${conversationCounter += 1}`,
+        modelId: data.modelId ?? null,
+        providerId: data.providerId ?? null,
+        title: data.title ?? "Nova conversa",
+        updatedAt: now(),
+        userId: data.userId ?? "user-1",
+      };
+      state.conversations.push(conversation);
+      return select ? project(conversation, select) : conversation;
+    }),
+    delete: vi.fn(async ({ where: { id } }: { where: { id: string } }) => {
+      state.conversations = state.conversations.filter((conversation) => conversation.id !== id);
+      state.messages = state.messages.filter((message) => message.conversationId !== id);
+      state.attachments = state.attachments.filter((attachment) => attachment.conversationId !== id);
+      return { id };
+    }),
+    findFirst: vi.fn(async ({ where }: { where: { id?: string; userId?: string } }) =>
+      state.conversations.find((conversation) =>
+        (!where.id || conversation.id === where.id) &&
+        (!where.userId || conversation.userId === where.userId),
+      ) ?? null),
+    findMany: vi.fn(async ({ where }: { where: { userId: string } }) =>
+      state.conversations
+        .filter((conversation) => conversation.userId === where.userId)
+        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())),
+    update: vi.fn(async ({ where: { id }, data, select }: {
+      data: Partial<ConversationRecord>;
+      select?: Record<string, boolean>;
+      where: { id: string };
+    }) => {
+      const conversation = state.conversations.find((entry) => entry.id === id);
+      if (!conversation) {
+        throw new Error(`Conversation ${id} not found`);
+      }
+
+      conversation.title = data.title ?? conversation.title;
+      conversation.updatedAt = now();
+      return select ? project(conversation, select) : conversation;
+    }),
+  },
+  conversationAttachment: {
+    create: vi.fn(async ({ data, select }: { data: Omit<AttachmentRecord, "createdAt" | "id" | "messageId"> & { messageId?: string | null }; select?: Record<string, boolean> }) => {
+      const attachment: AttachmentRecord = {
+        blob: data.blob,
+        byteSize: data.byteSize,
+        conversationId: data.conversationId,
+        createdAt: now(),
+        extractedText: data.extractedText ?? null,
+        extractionStatus: data.extractionStatus,
+        fileName: data.fileName,
+        id: `att-${attachmentCounter += 1}`,
+        kind: data.kind,
+        messageId: data.messageId ?? null,
+        mimeType: data.mimeType,
+      };
+      state.attachments.push(attachment);
+      return select ? project(attachment, select) : attachment;
+    }),
+    findFirst: vi.fn(async ({ where, select }: {
+      select?: Record<string, boolean>;
+      where: { conversationId?: string; id?: string };
+    }) => {
+      const attachment = state.attachments.find((entry) =>
+        (!where.conversationId || entry.conversationId === where.conversationId) &&
+        (!where.id || entry.id === where.id),
+      ) ?? null;
+      return attachment && select ? project(attachment, select) : attachment;
+    }),
+    findMany: vi.fn(async ({ where, select }: {
+      select?: Record<string, boolean>;
+      where?: {
+        conversation?: { userId?: string };
+        conversationId?: string;
+        id?: { in?: string[] };
+      };
+    }) => {
+      const attachments = state.attachments.filter((attachment) => {
+        if (where?.conversationId && attachment.conversationId !== where.conversationId) {
+          return false;
+        }
+
+        if (where?.id?.in && !where.id.in.includes(attachment.id)) {
+          return false;
+        }
+
+        if (where?.conversation?.userId) {
+          const conversation = state.conversations.find((entry) => entry.id === attachment.conversationId);
+          return conversation?.userId === where.conversation.userId;
+        }
+
+        return true;
+      });
+
+      return select ? attachments.map((attachment) => project(attachment, select)) : attachments;
+    }),
+    updateMany: vi.fn(async ({ data, where }: {
+      data: { messageId?: string | null };
+      where: { conversationId?: string; id?: { in?: string[] } };
+    }) => {
+      let count = 0;
+      for (const attachment of state.attachments) {
+        if (where.conversationId && attachment.conversationId !== where.conversationId) {
+          continue;
+        }
+        if (where.id?.in && !where.id.in.includes(attachment.id)) {
+          continue;
+        }
+        attachment.messageId = data.messageId ?? null;
+        count += 1;
+      }
+      return { count };
+    }),
+  },
+  message: {
+    create: vi.fn(async ({ data, select }: { data: Omit<MessageRecord, "createdAt" | "id">; select?: Record<string, boolean> }) => {
+      const message: MessageRecord = {
+        content: data.content,
+        conversationId: data.conversationId,
+        createdAt: now(),
+        id: `msg-${messageCounter += 1}`,
+        parts: data.parts ?? null,
+        role: data.role,
+      };
+      state.messages.push(message);
+      return select ? project(message, select) : message;
+    }),
+    deleteMany: vi.fn(async ({ where }: { where: { conversationId?: string; id?: { in?: string[] } } }) => {
+      const beforeCount = state.messages.length;
+      const deletedIds = new Set(where.id?.in ?? []);
+      state.messages = state.messages.filter((message) => {
+        if (where.conversationId && message.conversationId !== where.conversationId) {
+          return true;
+        }
+        return !deletedIds.has(message.id);
+      });
+      for (const attachment of state.attachments) {
+        if (attachment.messageId && deletedIds.has(attachment.messageId)) {
+          attachment.messageId = null;
+        }
+      }
+      return { count: beforeCount - state.messages.length };
+    }),
+    findMany: vi.fn(async ({ where, select }: {
+      select?: Record<string, boolean>;
+      where: { conversationId: string };
+    }) => {
+      const messages = state.messages
+        .filter((message) => message.conversationId === where.conversationId)
+        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime() || left.id.localeCompare(right.id));
+      return select ? messages.map((message) => project(message, select)) : messages;
+    }),
+  },
+  providerCredential: { findMany: vi.fn().mockResolvedValue([]) },
+  usageLog: { create: vi.fn().mockReturnValue({ catch: vi.fn() }) },
+  user: { upsert: vi.fn().mockResolvedValue(null) },
+};
+
+function project<T extends Record<string, unknown>>(value: T, select: Record<string, boolean>) {
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, include]) => include)
+      .map(([key]) => [key, value[key as keyof T]]),
+  );
+}
+
+vi.mock("../lib/db", () => ({ prisma: mockPrisma }));
+vi.mock("../env", () => ({}));
+vi.mock("@/lib/auth/server", () => ({ auth: { getSession } }));
+
+const conversationsFetch = (await import("../routes/conversations")).default;
+
+describe("conversation routes with attachments", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetState();
+    getSession.mockResolvedValue({
+      data: {
+        session: { id: "session-1" },
+        user: { email: "user@example.com", id: "user-1", name: "User" },
+      },
+    });
+  });
+
+  afterEach(() => {
+    getSession.mockReset();
+  });
+
+  it("uploads an attachment, persists message parts, and hydrates them on fetch", async () => {
+    const imageBody = new Uint8Array([137, 80, 78, 71]);
+    const formData = new FormData();
+    formData.append("file", new File([imageBody], "preview.png", { type: "image/png" }));
+
+    const uploadResponse = await conversationsFetch(new Request("http://localhost/conversations/conv-1/attachments", {
+      body: formData,
+      method: "POST",
+    }));
+
+    expect(uploadResponse.status).toBe(201);
+    const uploadPayload = await uploadResponse.json() as {
+      attachment: ConversationAttachmentDescriptor;
+    };
+    expect(uploadPayload.attachment.fileName).toBe("preview.png");
+    expect(uploadPayload.attachment.contentUrl).toContain("/conversations/conv-1/attachments/");
+
+    const saveResponse = await conversationsFetch(new Request("http://localhost/conversations/conv-1/messages", {
+      body: JSON.stringify({
+        messages: [{
+          parts: [
+            { text: "Analise a imagem", type: "text" },
+            {
+              attachmentId: uploadPayload.attachment.id,
+              fileName: uploadPayload.attachment.fileName,
+              kind: "image",
+              mimeType: uploadPayload.attachment.mimeType,
+              type: "attachment",
+            },
+          ],
+          role: "user",
+        }],
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    }));
+
+    expect(saveResponse.status).toBe(201);
+    const savedPayload = await saveResponse.json() as { messages: Array<{ id: string; parts: Array<{ type: string }> }> };
+    expect(savedPayload.messages[0]?.parts).toHaveLength(2);
+
+    const fetchResponse = await conversationsFetch(new Request("http://localhost/conversations/conv-1/messages", {
+      method: "GET",
+    }));
+
+    expect(fetchResponse.status).toBe(200);
+    const fetchPayload = await fetchResponse.json() as {
+      messages: Array<{ parts: Array<{ contentUrl?: string; fileName?: string; type: string }> }>;
+    };
+
+    expect(fetchPayload.messages[0]?.parts[0]).toEqual({ text: "Analise a imagem", type: "text" });
+    expect(fetchPayload.messages[0]?.parts[1]).toMatchObject({
+      contentUrl: uploadPayload.attachment.contentUrl,
+      fileName: "preview.png",
+      type: "attachment",
+    });
+
+    const contentResponse = await conversationsFetch(new Request(uploadPayload.attachment.contentUrl.replace("/conversations", "http://localhost/conversations"), {
+      method: "GET",
+    }));
+
+    expect(contentResponse.status).toBe(200);
+    expect(contentResponse.headers.get("Content-Type")).toBe("image/png");
+    expect(new Uint8Array(await contentResponse.arrayBuffer())).toEqual(imageBody);
+  });
+
+  it("trims persisted messages from a target id onward", async () => {
+    state.messages.push(
+      { content: "Primeira", conversationId: "conv-1", createdAt: now(), id: "msg-a", parts: null, role: "user" },
+      { content: "Resposta", conversationId: "conv-1", createdAt: now(), id: "msg-b", parts: null, role: "assistant" },
+      { content: "Segunda", conversationId: "conv-1", createdAt: now(), id: "msg-c", parts: null, role: "user" },
+    );
+
+    const response = await conversationsFetch(new Request("http://localhost/conversations/conv-1/messages?fromMessageId=msg-b", {
+      method: "DELETE",
+    }));
+
+    expect(response.status).toBe(200);
+    expect(state.messages.map((message) => message.id)).toEqual(["msg-a"]);
+  });
+});

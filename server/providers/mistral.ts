@@ -1,0 +1,37 @@
+import { createProviderApp } from '../lib/provider-core'
+import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
+
+export const models = [
+  { capabilities: { documents: true, images: false }, id: 'mistral-small-latest', name: 'Mistral Small Latest' },
+  { capabilities: { documents: true, images: false }, id: 'ministral-3b-latest', name: 'Ministral 3B Latest' },
+]
+
+const app = createProviderApp({
+  providerId: 'mistral',
+  basePath: '/mistral',
+  models,
+  defaultModel: models[0].id,
+  chat: async (messages, modelId, rawBody, credentials) =>
+    chatViaOpenAiCompatible(
+      {
+        providerName: 'Mistral',
+        chatUrl: process.env.MISTRAL_CHAT_URL || 'https://api.mistral.ai/v1/chat/completions',
+        apiKeyEnv: 'MISTRAL_API_KEY',
+      },
+      { messages, modelId, rawBody },
+      credentials,
+    ),
+  fetchModels: createOpenAiFetchModels({
+    modelsUrl: 'https://api.mistral.ai/v1/models',
+    apiKeyEnv: 'MISTRAL_API_KEY',
+    providerName: 'Mistral',
+  }),
+  testCredentials: (credentials) =>
+    testViaOpenAiModels(
+      { modelsUrl: 'https://api.mistral.ai/v1/models', apiKeyEnv: 'MISTRAL_API_KEY', providerName: 'Mistral' },
+      credentials,
+    ),
+})
+
+export default app.fetch
+

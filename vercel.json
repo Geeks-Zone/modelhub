@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm run build:vercel",
+  "framework": "nextjs",
+  "functions": {
+    "app/**/*": {
+      "maxDuration": 60
+    }
+  }
+}
+

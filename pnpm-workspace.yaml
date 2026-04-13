@@ -1,0 +1,4 @@
+ignoredBuiltDependencies:
+  - '@sentry-internal/node-cpu-profiler'
+  - core-js
+  - puppeteer

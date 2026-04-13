@@ -1,0 +1,36 @@
+node_modules/
+.pnpm-store/
+
+.next/
+out/
+dist/
+coverage/
+*.lcov
+*.tgz
+
+*.log
+logs/
+report.*.json
+
+.env
+.env.local
+.env.*.local
+
+# IMPORTANTE: Nunca commite arquivos .env com credenciais reais!
+# Use .env.example como template
+
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+.idea/
+.DS_Store
+.vercel/
+
+generated/
+prisma/dev.db
+prisma/dev.db-journal
+apps/
+packages/
+
+.github/instructions/codacy.instructions.md

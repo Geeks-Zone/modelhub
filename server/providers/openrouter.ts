@@ -1,0 +1,43 @@
+import { createProviderApp } from '../lib/provider-core'
+import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
+
+export const models = [
+  { capabilities: { documents: true, images: false }, id: 'openai/gpt-oss-20b:free', name: 'GPT OSS 20B (OpenRouter Free)' },
+  { capabilities: { documents: true, images: false }, id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (OpenRouter Free)' },
+  { capabilities: { documents: true, images: false }, id: 'google/gemma-3-12b-it:free', name: 'Gemma 3 12B (OpenRouter Free)' },
+]
+
+const app = createProviderApp({
+  providerId: 'openrouter',
+  basePath: '/openrouter',
+  models,
+  defaultModel: models[0].id,
+  chat: async (messages, modelId, rawBody, credentials) =>
+    chatViaOpenAiCompatible(
+      {
+        providerName: 'OpenRouter',
+        chatUrl: process.env.OPENROUTER_CHAT_URL || 'https://openrouter.ai/api/v1/chat/completions',
+        apiKeyEnv: 'OPENROUTER_API_KEY',
+        extraHeaders: {
+          'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'https://localhost',
+          'X-Title': process.env.OPENROUTER_APP_NAME || 'ai-proxy',
+        },
+      },
+      { messages, modelId, rawBody },
+      credentials,
+    ),
+  fetchModels: createOpenAiFetchModels({
+    modelsUrl: 'https://openrouter.ai/api/v1/models',
+    apiKeyEnv: 'OPENROUTER_API_KEY',
+    providerName: 'OpenRouter',
+  }),
+  testCredentials: (credentials) =>
+    testViaOpenAiModels(
+      { modelsUrl: 'https://openrouter.ai/api/v1/models', apiKeyEnv: 'OPENROUTER_API_KEY', providerName: 'OpenRouter' },
+      credentials,
+    ),
+})
+
+export default app.fetch
+
+

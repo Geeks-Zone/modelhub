@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+
+import { shouldValidateRuntimeEnv, validateRuntimeEnvConfig } from "../env";
+
+const VALID_ENV = {
+  ALLOW_DEBUG_ENDPOINTS: "false",
+  DATABASE_URL: "postgresql://neondb_owner:password@ep-example-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require",
+  ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  NEON_AUTH_BASE_URL: "https://auth.example.com",
+  NEON_AUTH_COOKIE_SECRET: "super-secret-cookie-value",
+  NODE_ENV: "production",
+  REQUIRE_AUTH: "true",
+  VERCEL_ENV: "preview",
+} satisfies NodeJS.ProcessEnv;
+
+describe("runtime env validation", () => {
+  it("validates a complete preview configuration", () => {
+    expect(validateRuntimeEnvConfig(VALID_ENV)).toEqual([]);
+  });
+
+  it("fails when central envs are missing", () => {
+    expect(validateRuntimeEnvConfig({ NODE_ENV: "production", VERCEL_ENV: "preview" } as NodeJS.ProcessEnv)).toEqual(
+      expect.arrayContaining([
+        "DATABASE_URL is required.",
+        "ENCRYPTION_KEY is required.",
+        "NEON_AUTH_BASE_URL is required.",
+        "NEON_AUTH_COOKIE_SECRET is required.",
+      ]),
+    );
+  });
+
+  it("requires all shared provider envs when one of them is configured", () => {
+    const issues = validateRuntimeEnvConfig({
+      ...VALID_ENV,
+      CLOUDFLARE_API_TOKEN: "token",
+      ENABLED_PROVIDERS: "cloudflareworkersai",
+    });
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        'Provider "cloudflareworkersai" is in shared-env mode and requires CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.',
+      ]),
+    );
+  });
+
+  it("only validates strictly on vercel preview or production", () => {
+    expect(shouldValidateRuntimeEnv({ NODE_ENV: "development" } as NodeJS.ProcessEnv)).toBe(false);
+    expect(shouldValidateRuntimeEnv({ NODE_ENV: "production", VERCEL_ENV: "preview" } as NodeJS.ProcessEnv)).toBe(true);
+    expect(shouldValidateRuntimeEnv({ NODE_ENV: "production", VERCEL_ENV: "production" } as NodeJS.ProcessEnv)).toBe(true);
+  });
+
+  it("skips validation during Next.js build phase", () => {
+    expect(shouldValidateRuntimeEnv({ NODE_ENV: "production", VERCEL_ENV: "production", NEXT_PHASE: "phase-production-build" } as NodeJS.ProcessEnv)).toBe(false);
+  });
+});

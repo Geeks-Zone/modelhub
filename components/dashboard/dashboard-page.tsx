@@ -1,0 +1,630 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import type {
+  ApiKeySummary,
+  RecentUsageLog,
+  UiProvider,
+  UsageSummary,
+} from "@/lib/contracts";
+import {
+  ActivityIcon,
+  AlertTriangleIcon,
+  BarChart3Icon,
+  CheckIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  KeyRoundIcon,
+  Loader2Icon,
+  PlusIcon,
+  ShieldCheckIcon,
+  Trash2Icon,
+} from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis } from "recharts";
+import { toast } from "sonner";
+
+import { useAppState } from "@/components/app-state-provider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import { apiJson, apiJsonRequest, testProviderCredentials } from "@/lib/api";
+
+function formatDate(value: string | Date | null | undefined) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "medium",
+    timeStyle: typeof value === "string" && value.includes("T") ? "short" : undefined,
+  }).format(new Date(value));
+}
+
+function providerLabel(providerId: string, providers: UiProvider[]) {
+  return providers.find((provider) => provider.id === providerId)?.label ?? providerId;
+}
+
+export function DashboardPage() {
+  const { credentials, providers, refreshCredentials, refreshUser, user } = useAppState();
+  const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [logs, setLogs] = useState<RecentUsageLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newKeyDialogOpen, setNewKeyDialogOpen] = useState(false);
+  const [newKeyLabel, setNewKeyLabel] = useState("");
+  const [newApiKey, setNewApiKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
+  const [savingCredentials, setSavingCredentials] = useState(false);
+
+  const selectedProvider = useMemo(
+    () => providers.find((provider) => provider.id === selectedProviderId) ?? null,
+    [providers, selectedProviderId],
+  );
+
+  async function loadDashboard() {
+    setLoading(true);
+    try {
+      const [keysPayload, usagePayload, logsPayload] = await Promise.all([
+        apiJson<{ keys: ApiKeySummary[] }>("/user/api-keys"),
+        apiJson<UsageSummary>("/user/usage?days=30"),
+        apiJson<{ logs: RecentUsageLog[] }>("/user/usage/recent?limit=20"),
+      ]);
+
+      setApiKeys(keysPayload.keys);
+      setUsage(usagePayload);
+      setLogs(logsPayload.logs);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao carregar dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadDashboard();
+  }, []);
+
+  async function handleCreateApiKey() {
+    try {
+      const payload = await apiJsonRequest<{ apiKey: string }>("/user/api-keys", "POST", {
+        label: newKeyLabel || undefined,
+      });
+      setNewApiKey(payload.apiKey);
+      setCopiedKey(false);
+      setNewKeyDialogOpen(false);
+      setNewKeyLabel("");
+      await Promise.all([loadDashboard(), refreshUser()]);
+      toast.success("Nova API key criada.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao criar API key.");
+    }
+  }
+
+  async function handleRevokeApiKey(keyId: string) {
+    try {
+      await apiJsonRequest(`/user/api-keys/${keyId}`, "DELETE");
+      await Promise.all([loadDashboard(), refreshUser()]);
+      toast.success("API key revogada.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao revogar API key.");
+    }
+  }
+
+  async function handleDeleteCredential(credentialId: string) {
+    try {
+      await apiJsonRequest(`/user/credentials/${credentialId}`, "DELETE");
+      await Promise.all([refreshCredentials(), refreshUser()]);
+      toast.success("Credencial removida.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao remover credencial.");
+    }
+  }
+
+  async function handleSaveCredentials() {
+    if (!selectedProvider) {
+      toast.error("Selecione um provider.");
+      return;
+    }
+
+    const requiredKeys = selectedProvider.requiredKeys ?? [];
+    if (requiredKeys.length === 0) {
+      toast.error("Esse provider não exige credenciais adicionais.");
+      return;
+    }
+
+    if (requiredKeys.some((field) => !credentialValues[field.envName]?.trim())) {
+      toast.error("Preencha todos os campos do provider.");
+      return;
+    }
+
+    setSavingCredentials(true);
+    try {
+      // 1. Testar credenciais
+      const creds: Record<string, string> = {};
+      for (const f of requiredKeys) {
+        creds[f.envName] = credentialValues[f.envName];
+      }
+
+      const testResult = await testProviderCredentials(selectedProvider.base, creds);
+      if (!testResult.ok && !testResult.skipped) {
+        toast.error(testResult.error ?? "Chave inválida. Verifique e tente novamente.");
+        return;
+      }
+
+      // 2. Salvar credenciais
+      await Promise.all(
+        requiredKeys.map((field) =>
+          apiJsonRequest("/user/credentials", "POST", {
+            credentialKey: field.envName,
+            credentialValue: credentialValues[field.envName],
+            providerId: selectedProvider.id,
+          }),
+        ),
+      );
+      setCredentialDialogOpen(false);
+      setCredentialValues({});
+      await Promise.all([refreshCredentials(), refreshUser()]);
+      toast.success(`Credenciais salvas para ${selectedProvider.label}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao salvar credenciais.");
+    } finally {
+      setSavingCredentials(false);
+    }
+  }
+
+  if (loading && !usage) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const providerChartData = usage?.byProvider.slice(0, 6) ?? [];
+  const dailyChartData = usage?.daily ?? [];
+
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-3 md:gap-6 md:p-6">
+      <Dialog open={!!newApiKey} onOpenChange={(open) => { if (!open) setNewApiKey(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>API key criada com sucesso</DialogTitle>
+            <DialogDescription>
+              Copie a key abaixo. Ela não poderá ser exibida novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 overflow-hidden">
+            <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-muted px-3 py-2 text-sm break-all select-all">{newApiKey}</code>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                if (newApiKey) {
+                  void navigator.clipboard.writeText(newApiKey);
+                  setCopiedKey(true);
+                  toast.success("API key copiada!");
+                  setTimeout(() => setCopiedKey(false), 2000);
+                }
+              }}
+            >
+              {copiedKey ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <CardDescription>Requests em 30 dias</CardDescription>
+            <CardTitle className="text-3xl">{usage?.totalRequests ?? 0}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Volume total por usuário autenticado.</CardContent>
+        </Card>
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <CardDescription>Taxa de erro</CardDescription>
+            <CardTitle className="text-3xl">{usage?.errorRate ?? 0}%</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Calculada a partir dos status HTTP registrados.</CardContent>
+        </Card>
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <CardDescription>API keys ativas</CardDescription>
+            <CardTitle className="text-3xl">{user?.counts?.activeApiKeys ?? 0}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Keys disponíveis para clientes externos.</CardContent>
+        </Card>
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <CardDescription>Credenciais salvas</CardDescription>
+            <CardTitle className="text-3xl">{user?.counts?.providerCredentials ?? 0}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Segredos por provider armazenados no backend.</CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-3 md:gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle>Uso diário</CardTitle>
+            <CardDescription>Requests registrados nos últimos 30 dias.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                count: {
+                  color: "var(--color-chart-1)",
+                  label: "Requests",
+                },
+              }}
+              className="h-[280px] w-full"
+            >
+              <LineChart data={dailyChartData}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) =>
+                    new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(new Date(value))
+                  }
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line
+                  dataKey="count"
+                  type="monotone"
+                  stroke="var(--color-count)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle>Top providers</CardTitle>
+            <CardDescription>Distribuição de requests por provider.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                count: {
+                  color: "var(--color-chart-2)",
+                  label: "Requests",
+                },
+              }}
+              className="h-[280px] w-full"
+            >
+              <BarChart data={providerChartData}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="provider"
+                  tickFormatter={(value) => providerLabel(value, providers)}
+                  interval={0}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="count" fill="var(--color-count)" radius={8} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="overview" className="flex flex-1 flex-col gap-4">
+        <TabsList className="grid w-full grid-cols-4 text-xs sm:text-sm">
+          <TabsTrigger value="overview">Resumo</TabsTrigger>
+          <TabsTrigger value="keys">Keys</TabsTrigger>
+          <TabsTrigger value="credentials">Creds</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview">
+          <Card className="border-border/60">
+            <CardHeader>
+              <CardTitle>Conta</CardTitle>
+              <CardDescription>Resumo operacional da sessão autenticada.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-xl border border-border/60 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <ActivityIcon className="size-4 text-primary" />
+                  Email
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{user?.email}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <BarChart3Icon className="size-4 text-primary" />
+                  Criado em
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{formatDate(user?.createdAt ?? null)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <AlertTriangleIcon className="size-4 text-primary" />
+                  Requests totais
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{user?.counts?.totalRequests ?? 0}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="keys" className="flex flex-col gap-4">
+          <Card className="border-border/60">
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <CardTitle>API Keys</CardTitle>
+                <CardDescription>Gere e revogue chaves para seus clientes externos.</CardDescription>
+              </div>
+              <Button onClick={() => setNewKeyDialogOpen(true)}>
+                <PlusIcon data-icon="inline-start" />
+                Nova key
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {apiKeys.length === 0 ? (
+                <Empty className="border-border/60">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <KeyRoundIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Nenhuma API key ativa</EmptyTitle>
+                    <EmptyDescription>Crie uma nova key para começar a consumir o proxy externamente.</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Prefixo</TableHead>
+                      <TableHead>Label</TableHead>
+                      <TableHead className="hidden sm:table-cell">Criada</TableHead>
+                      <TableHead className="hidden sm:table-cell">Último uso</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {apiKeys.map((apiKey) => (
+                      <TableRow key={apiKey.id}>
+                        <TableCell><code>{apiKey.prefix}...</code></TableCell>
+                        <TableCell>{apiKey.label || "—"}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{formatDate(apiKey.createdAt)}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{formatDate(apiKey.lastUsedAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => void handleRevokeApiKey(apiKey.id)}>
+                            <Trash2Icon data-icon="inline-start" />
+                            Revogar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="credentials" className="flex flex-col gap-4">
+          <Card className="border-border/60">
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <CardTitle>Credenciais de providers</CardTitle>
+                <CardDescription>Armazenadas no backend para a UI web usar sem <code>localStorage</code>.</CardDescription>
+              </div>
+              <Button onClick={() => setCredentialDialogOpen(true)}>
+                <PlusIcon data-icon="inline-start" />
+                Adicionar
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {credentials.length === 0 ? (
+                <Empty className="border-border/60">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <ShieldCheckIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Nenhuma credencial salva</EmptyTitle>
+                    <EmptyDescription>Adicione as chaves dos providers pagos ou autenticados.</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Chave</TableHead>
+                      <TableHead className="hidden sm:table-cell">Atualizada</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {credentials.map((credential) => (
+                      <TableRow key={credential.id}>
+                        <TableCell>{providerLabel(credential.providerId, providers)}</TableCell>
+                        <TableCell><code>{credential.credentialKey}</code></TableCell>
+                        <TableCell className="hidden sm:table-cell">{formatDate(credential.updatedAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => void handleDeleteCredential(credential.id)}>
+                            <Trash2Icon data-icon="inline-start" />
+                            <span className="hidden sm:inline">Remover</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <Card className="border-border/60">
+            <CardHeader>
+              <CardTitle>Logs recentes</CardTitle>
+              <CardDescription>Últimos requests autenticados associados ao seu usuário.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {logs.length === 0 ? (
+                <Empty className="border-border/60">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <ActivityIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Nenhum log recente</EmptyTitle>
+                    <EmptyDescription>Os logs aparecerão aqui conforme você usa os endpoints protegidos.</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead className="hidden sm:table-cell">Modelo</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="hidden md:table-cell">Key</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-xs">{formatDate(log.createdAt)}</TableCell>
+                        <TableCell className="text-xs">{providerLabel(log.providerId ?? "—", providers)}</TableCell>
+                        <TableCell className="hidden text-xs sm:table-cell">{log.modelId ?? "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={log.statusCode >= 400 ? "destructive" : "secondary"}>
+                            {log.statusCode}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">{log.apiKey ? `${log.apiKey.prefix}...` : "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={newKeyDialogOpen} onOpenChange={setNewKeyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova API key</DialogTitle>
+            <DialogDescription>Opcionalmente defina um label para identificar a key depois.</DialogDescription>
+          </DialogHeader>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="api-key-label">Label</FieldLabel>
+              <Input
+                id="api-key-label"
+                placeholder="Ex: CLI local"
+                value={newKeyLabel}
+                onChange={(event) => setNewKeyLabel(event.target.value)}
+              />
+              <FieldDescription>Se vazio, o backend usa o label padrão.</FieldDescription>
+            </Field>
+          </FieldGroup>
+          <Button onClick={() => void handleCreateApiKey()}>Criar key</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={credentialDialogOpen} onOpenChange={setCredentialDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar credenciais</DialogTitle>
+            <DialogDescription>Selecione um provider e informe as chaves exigidas por ele.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-5">
+            <FieldGroup>
+              <Field>
+                <FieldLabel>Provider</FieldLabel>
+                <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {providers.filter((provider) => (provider.requiredKeys?.length ?? 0) > 0).map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {selectedProvider?.signupUrl && (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-500/5 px-3 py-2.5 text-sm text-blue-600 dark:text-blue-400">
+                  <ExternalLinkIcon className="size-4 shrink-0" />
+                  <span>
+                    Não tem chave?{" "}
+                    <a
+                      href={selectedProvider.signupUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline underline-offset-2"
+                    >
+                      {selectedProvider.signupLabel ?? "Clique aqui para obter"}
+                    </a>
+                  </span>
+                </div>
+              )}
+              {(selectedProvider?.requiredKeys ?? []).map((field) => (
+                <Field key={field.envName}>
+                  <FieldLabel htmlFor={field.envName}>{field.label}</FieldLabel>
+                  <Input
+                    id={field.envName}
+                    type="password"
+                    placeholder={field.placeholder}
+                    value={credentialValues[field.envName] ?? ""}
+                    onChange={(event) =>
+                      setCredentialValues((current) => ({
+                        ...current,
+                        [field.envName]: event.target.value,
+                      }))
+                    }
+                  />
+                  <FieldDescription>{field.envName}</FieldDescription>
+                </Field>
+              ))}
+            </FieldGroup>
+            <Button disabled={savingCredentials} onClick={() => void handleSaveCredentials()}>
+              {savingCredentials && <Loader2Icon className="size-3 animate-spin" />}
+              {savingCredentials ? "Testando conexão…" : "Salvar credenciais"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

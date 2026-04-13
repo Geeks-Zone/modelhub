@@ -1,0 +1,67 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { parseChatStream } from "./chat-stream";
+
+function createStreamResponse(chunks: string[]) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)));
+      controller.close();
+    },
+  });
+
+  return new Response(stream);
+}
+
+describe("parseChatStream", () => {
+  it("parses text deltas and tool events from mixed payloads", async () => {
+    const onTextDelta = vi.fn();
+    const onToolStart = vi.fn();
+    const onToolResult = vi.fn();
+
+    const response = createStreamResponse([
+      '0:"Ol"\n',
+      '0:"Ã¡"\n',
+      '9:{"toolCallId":"tool-1","toolName":"search","args":{"q":"test"}}\n',
+      'a:{"toolCallId":"tool-1","result":{"ok":true}}\n',
+      'data: {"type":"text-delta","delta":" mundo"}\n',
+    ]);
+
+    const parsed = await parseChatStream(response, {
+      onTextDelta,
+      onToolResult,
+      onToolStart,
+    });
+
+    expect(parsed).toEqual({
+      errorMessage: undefined,
+      hadPartialOutput: true,
+      text: "OlÃ¡ mundo",
+    });
+    expect(onTextDelta).toHaveBeenCalledTimes(3);
+    expect(onToolStart).toHaveBeenCalledWith({
+      args: { q: "test" },
+      status: "running",
+      toolCallId: "tool-1",
+      toolName: "search",
+    });
+    expect(onToolResult).toHaveBeenCalledWith("tool-1", { ok: true });
+  });
+
+  it("captures stream errors without discarding partial text", async () => {
+    const response = createStreamResponse([
+      '0:"Parcial"\n',
+      '3:"ERR_CHALLENGE"\n',
+      'd:{"finishReason":"error"}\n',
+    ]);
+
+    const parsed = await parseChatStream(response, {});
+
+    expect(parsed).toEqual({
+      errorMessage: "ERR_CHALLENGE",
+      hadPartialOutput: true,
+      text: "Parcial",
+    });
+  });
+});

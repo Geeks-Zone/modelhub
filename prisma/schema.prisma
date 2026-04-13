@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  isActive  Boolean  @default(true)
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apiKeys             ApiKey[]
+  providerCredentials ProviderCredential[]
+  usageLogs           UsageLog[]
+  conversations       Conversation[]
+  settings            UserSettings?
+  memories            UserMemory[]
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  key        String    @unique
+  prefix     String
+  label      String    @default("default")
+  userId     String
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageLogs UsageLog[]
+
+  @@index([key])
+  @@index([userId])
+}
+
+model ProviderCredential {
+  id              String   @id @default(cuid())
+  userId          String
+  providerId      String
+  credentialKey   String
+  credentialValue String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerId, credentialKey])
+  @@index([userId, providerId])
+}
+
+model UsageLog {
+  id         String   @id @default(cuid())
+  userId     String
+  apiKeyId   String?
+  providerId String
+  modelId    String?
+  endpoint   String?
+  statusCode Int      @default(200)
+  createdAt  DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([apiKeyId])
+}
+
+model Conversation {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String   @default("Nova conversa")
+  providerId String?
+  modelId    String?
+  archived   Boolean  @default(false)
+  shareToken String?  @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+  attachments ConversationAttachment[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  parts          Json?
+  parentId       String?
+  branchIndex    Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments  ConversationAttachment[]
+  reactions    MessageReaction[]
+  parent       Message?          @relation("MessageBranches", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Message[]         @relation("MessageBranches")
+
+  @@index([conversationId, createdAt])
+  @@index([parentId])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  type      String   // "thumbs_up" | "thumbs_down"
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}
+
+model UserSettings {
+  id                    String  @id @default(cuid())
+  userId                String  @unique
+  customInstructionsAbout String? // "What should the AI know about you?"
+  customInstructionsStyle String? // "How should the AI respond?"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ConversationAttachment {
+  id               String   @id @default(cuid())
+  conversationId   String
+  messageId        String?
+  kind             String
+  mimeType         String
+  fileName         String
+  byteSize         Int
+  blob             Bytes
+  extractedText    String?
+  extractionStatus String
+  createdAt        DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([messageId])
+}
