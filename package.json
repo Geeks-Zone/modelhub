@@ -59,7 +59,7 @@
     "clsx": "^2.1.1",
     "fast-xml-parser": "^5.3.1",
     "highlight.js": "^11.11.1",
-    "hono": "^4.7.5",
+    "hono": "^4.12.12",
     "jsdom": "^29.0.2",
     "jszip": "^3.10.1",
     "katex": "^0.16.45",
@@ -100,5 +100,18 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "auditConfig": {
+      "ignoreGhsas": ["GHSA-xg6x-h9c9-2m83"]
+    },
+    "overrides": {
+      "vite": "^7.3.2",
+      "path-to-regexp": ">=8.4.0",
+      "defu": ">=6.1.5",
+      "basic-ftp": ">=5.2.2",
+      "brace-expansion": "^1.1.13",
+      "@hono/node-server": ">=1.19.13"
+    }
   }
 }
