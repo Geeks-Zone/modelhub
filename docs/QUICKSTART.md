@@ -172,6 +172,35 @@ const response = await client.chat.completions.create({
 console.log(response.choices[0].message.content);
 ```
 
+## 🐾 OpenClaw em poucos passos
+
+### Configuração mínima (OpenAI-compatible)
+
+No OpenClaw, configure:
+
+- Base URL: `http://localhost:3000/v1`
+- Auth: `Bearer SUA_API_KEY`
+- Modelo: valor retornado por `GET /v1/models` no formato `provider/model-id`
+
+### Setup com CLI do ModelHub
+
+```bash
+# Bootstrap guiado (descoberta + catálogo + modelo recomendado)
+modelhub openclaw setup --base-url http://localhost:3000 --api-key SUA_API_KEY
+
+# Trocar modelo padrão depois
+modelhub openclaw use openrouter/openai/gpt-oss-20b:free
+
+# Diagnóstico completo de integração
+modelhub doctor
+```
+
+### Presets recomendados
+
+- Coding: modelos com melhor reasoning/tool-use
+- Low cost: modelos `:free`, `mini`, `flash`
+- Long context: modelos com contexto estendido (`128k+`)
+
 ## 🎯 Próximos Passos
 
 ### Explore as Features
@@ -209,6 +238,20 @@ console.log(response.choices[0].message.content);
 1. Verifique se copiou a key completa
 2. Verifique se a key não expirou
 3. Teste a key diretamente no site do provedor
+
+### Erro: "Invalid model" no OpenClaw
+
+**Solução:**
+1. Faça `GET /v1/models`
+2. Copie o `id` exatamente como retornado (ex.: `groq/llama-3.3-70b-versatile`)
+3. Atualize o modelo selecionado no OpenClaw
+
+### Erro: timeout no OpenClaw
+
+**Solução:**
+1. Rode `modelhub doctor` para validar health/status/catálogo
+2. Troque para preset low-cost/flash
+3. Reduza `max_tokens` no cliente
 
 ### Erro: "Port 3000 already in use"
 

@@ -166,7 +166,7 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "model": "gpt-4",
+    "model": "openrouter/openai/gpt-oss-20b:free",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
@@ -176,6 +176,46 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 ```bash
 curl http://localhost:3000/v1/models \
   -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### OpenClaw (modo OpenAI-compatible)
+
+Configuração mínima no OpenClaw:
+
+- **Base URL:** `https://SEU_MODELHUB/v1`
+- **API:** OpenAI-compatible chat completions
+- **Auth:** `Authorization: Bearer <MODELHUB_API_KEY>`
+- **Modelo:** use IDs no formato `provider/model-id` (ex.: `openrouter/openai/gpt-oss-20b:free`)
+
+Presets recomendados:
+
+- **Coding:** modelos com reasoning/tool-use (ex.: família GPT OSS, Qwen Coder, Sonnet)
+- **Low cost:** modelos `:free`, `mini` e `flash`
+- **Long context:** modelos `128k+` / `long context`
+
+Troubleshooting rápido:
+
+- **401/403 auth:** valide API key e header Bearer
+- **modelo inválido:** primeiro consulte `GET /v1/models` e use exatamente o `id` retornado
+- **timeout/latência:** troque para preset low-cost/flash e reduza `max_tokens`
+
+### OpenClaw (setup com CLI ModelHub)
+
+```bash
+# Setup completo (descoberta + catálogo + modelo recomendado)
+modelhub openclaw setup --base-url http://localhost:3000 --api-key SUA_API_KEY
+
+# Login por API key
+modelhub openclaw login --api-key SUA_API_KEY
+
+# Listar modelos disponíveis para o tenant
+modelhub openclaw models
+
+# Definir modelo padrão
+modelhub openclaw use openrouter/openai/gpt-oss-20b:free
+
+# Diagnóstico de integração
+modelhub doctor
 ```
 
 ### Desenvolvimento

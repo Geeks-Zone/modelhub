@@ -23,6 +23,8 @@ Authorization: Bearer YOUR_API_KEY
 https://your-modelhub.com/v1
 ```
 
+> Para endpoints de discovery/onboarding OpenClaw, use `https://your-modelhub.com/openclaw/*`.
+
 ## 🚀 Endpoints
 
 ### Chat Completions
@@ -40,7 +42,7 @@ Authorization: Bearer YOUR_API_KEY
 **Body:**
 ```json
 {
-  "model": "gpt-4",
+  "model": "openrouter/openai/gpt-oss-20b:free",
   "messages": [
     {
       "role": "system",
@@ -61,7 +63,7 @@ Authorization: Bearer YOUR_API_KEY
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
-| `model` | string | Sim | ID do modelo (ex: "gpt-4", "claude-3-5-sonnet") |
+| `model` | string | Sim | ID no formato `provider/model-id` (ex: `groq/llama-3.3-70b-versatile`) |
 | `messages` | array | Sim | Array de mensagens |
 | `temperature` | number | Não | 0-2, padrão 1 |
 | `max_tokens` | number | Não | Máximo de tokens na resposta |
@@ -167,6 +169,58 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
+### OpenClaw Discovery
+
+Metadados para onboarding de provider de primeira classe.
+
+**Endpoint:** `GET /openclaw/discovery`
+
+**Headers:**
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Resposta (resumo):**
+```json
+{
+  "provider": { "id": "modelhub", "name": "ModelHub" },
+  "api": {
+    "chatCompletions": "https://your-modelhub.com/v1/chat/completions",
+    "models": "https://your-modelhub.com/v1/models",
+    "catalog": "https://your-modelhub.com/openclaw/catalog",
+    "health": "https://your-modelhub.com/openclaw/health",
+    "status": "https://your-modelhub.com/openclaw/status"
+  },
+  "auth": {
+    "methods": ["api_key", "session_cookie"]
+  },
+  "onboarding": {
+    "headless": true,
+    "presets": [
+      { "preset": "coding", "model": "openrouter/openai/gpt-oss-20b:free" }
+    ]
+  }
+}
+```
+
+### OpenClaw Catalog
+
+Catálogo dinâmico de modelos por tenant/workspace com metadados operacionais.
+
+**Endpoint:** `GET /openclaw/catalog`
+
+### OpenClaw Status
+
+Status de autenticação e permissões de uso.
+
+**Endpoint:** `GET /openclaw/status`
+
+### OpenClaw Health
+
+Health probe para diagnóstico de integração OpenClaw.
+
+**Endpoint:** `GET /openclaw/health`
+
 ## 🔌 Provedores Suportados
 
 ### OpenAI
@@ -214,7 +268,7 @@ curl https://your-modelhub.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "model": "gpt-4",
+    "model": "openrouter/openai/gpt-oss-20b:free",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -232,7 +286,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gpt-4",
+    model="openrouter/openai/gpt-oss-20b:free",
     messages=[
         {"role": "user", "content": "Hello!"}
     ]
@@ -252,7 +306,7 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: 'gpt-4',
+  model: 'openrouter/openai/gpt-oss-20b:free',
   messages: [
     { role: 'user', content: 'Hello!' }
   ]
@@ -265,10 +319,18 @@ console.log(response.choices[0].message.content);
 
 ```typescript
 const stream = await client.chat.completions.create({
-  model: 'gpt-4',
+  model: 'openrouter/openai/gpt-oss-20b:free',
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: true
 });
+
+### Bootstrap OpenClaw com CLI
+
+```bash
+modelhub openclaw setup --base-url https://your-modelhub.com --api-key YOUR_API_KEY
+modelhub openclaw models
+modelhub doctor
+```
 
 for await (const chunk of stream) {
   const content = chunk.choices[0]?.delta?.content || '';
