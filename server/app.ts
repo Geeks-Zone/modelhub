@@ -17,10 +17,24 @@ import {
   protectedCors,
   securityHeaders,
 } from "./lib/security";
+import { prisma } from "./lib/db";
+import {
+  buildOpenClawCatalog,
+  buildOpenClawPresetRecommendations,
+  summarizeProviderCoverage,
+} from "./lib/openclaw";
 import { providerRegistry } from "./providers/registry";
 import userFetch from "./routes/user";
 import conversationsFetch from "./routes/conversations";
 import v1Fetch from "./routes/v1";
+
+type ApiAppEnv = {
+  Variables: {
+    apiKeyId: string;
+    sessionId: string;
+    userId: string;
+  };
+};
 
 function parseAllowedProxyDomains(): string[] {
   return (process.env.ALLOWED_PROXY_DOMAINS ?? "")
@@ -126,7 +140,7 @@ function sanitizeProxyResponseHeaders(responseHeaders: Headers): Headers {
 }
 
 export function createApiApp() {
-  const app = new Hono();
+  const app = new Hono<ApiAppEnv>();
   app.use("*", securityHeaders);
   app.use(async (c, next) => {
     const startedAt = Date.now();
@@ -146,6 +160,7 @@ export function createApiApp() {
   app.use("/:provider/*", protectedCors);
   app.use("/gateway/*", protectedCors);
   app.use("/embeddings/*", protectedCors);
+  app.use("/openclaw/*", protectedCors);
   app.use("/custom-model-proxy", protectedCors);
   app.use("/debug", protectedCors);
 
@@ -161,6 +176,142 @@ export function createApiApp() {
     return c.json({
       authRequired: isAccessProtectionEnabled(),
       providers: getAvailableProviders(),
+    });
+  });
+
+  app.get("/openclaw/discovery", async (c) => {
+    const accessError = await ensureProtectedAccess(c);
+    if (accessError) {
+      return accessError;
+    }
+
+    const url = new URL(c.req.url);
+    const catalog = await buildOpenClawCatalog();
+    const presets = buildOpenClawPresetRecommendations(catalog);
+    const coverage = summarizeProviderCoverage(catalog);
+
+    return c.json({
+      api: {
+        baseUrl: `${url.origin}/v1`,
+        catalog: `${url.origin}/openclaw/catalog`,
+        chatCompletions: `${url.origin}/v1/chat/completions`,
+        discovery: `${url.origin}/openclaw/discovery`,
+        health: `${url.origin}/openclaw/health`,
+        models: `${url.origin}/v1/models`,
+        status: `${url.origin}/openclaw/status`,
+      },
+      auth: {
+        bearerFormat: "Authorization: Bearer <modelhub-api-key>",
+        deviceCode: { supported: false },
+        methods: ["api_key", "session_cookie"],
+        oauth: { supported: false },
+        qrCode: { supported: false },
+      },
+      onboarding: {
+        headless: true,
+        presets,
+        supportsNativeProviderFlow: true,
+      },
+      provider: {
+        id: "modelhub",
+        modelCoverage: coverage,
+        name: "ModelHub",
+        openaiCompatible: true,
+      },
+      version: "v1",
+    });
+  });
+
+  app.get("/openclaw/catalog", async (c) => {
+    const accessError = await ensureProtectedAccess(c);
+    if (accessError) {
+      return accessError;
+    }
+
+    const catalog = await buildOpenClawCatalog();
+    return c.json({
+      generatedAt: new Date().toISOString(),
+      models: catalog,
+      presets: buildOpenClawPresetRecommendations(catalog),
+      summary: summarizeProviderCoverage(catalog),
+    });
+  });
+
+  app.get("/openclaw/status", async (c) => {
+    const accessError = await ensureProtectedAccess(c);
+    if (accessError) {
+      return accessError;
+    }
+
+    const userId = c.get("userId") as string | undefined;
+    const apiKeyId = c.get("apiKeyId") as string | undefined;
+    const sessionId = c.get("sessionId") as string | undefined;
+    const availableProviders = getAvailableProviders();
+    const availableProviderIds = new Set(availableProviders.map((provider) => provider.id));
+
+    const credentialsByProvider: Record<string, number> = {};
+    if (userId) {
+      const rows = await prisma.providerCredential.findMany({
+        where: { userId, providerId: { in: [...availableProviderIds] } },
+        select: { providerId: true },
+      });
+      for (const row of rows) {
+        credentialsByProvider[row.providerId] = (credentialsByProvider[row.providerId] ?? 0) + 1;
+      }
+    }
+
+    const providers = availableProviders.map((provider) => {
+      const requiredCount = provider.requiredKeys?.length ?? 0;
+      const configuredCount = credentialsByProvider[provider.id] ?? 0;
+      return {
+        configured: requiredCount === 0 || configuredCount >= requiredCount,
+        configuredCount,
+        id: provider.id,
+        label: provider.label,
+        requiredCount,
+      };
+    });
+
+    return c.json({
+      authenticated: Boolean(userId),
+      authenticatedVia: apiKeyId ? "api_key" : sessionId ? "session_cookie" : "unknown",
+      permissions: {
+        canChatCompletions: true,
+        canListModels: true,
+      },
+      providers,
+      user: {
+        apiKeyId: apiKeyId ?? null,
+        id: userId ?? null,
+      },
+    });
+  });
+
+  app.get("/openclaw/health", async (c) => {
+    const accessError = await ensureProtectedAccess(c);
+    if (accessError) {
+      return accessError;
+    }
+
+    const checks: Array<{ name: string; ok: boolean; details?: string }> = [
+      { name: "auth", ok: true },
+    ];
+
+    try {
+      const catalog = await buildOpenClawCatalog();
+      checks.push({ name: "catalog", ok: catalog.length > 0, details: `models=${catalog.length}` });
+    } catch (error) {
+      checks.push({
+        name: "catalog",
+        ok: false,
+        details: error instanceof Error ? error.message : "unknown error",
+      });
+    }
+
+    return c.json({
+      checks,
+      status: checks.every((check) => check.ok) ? "ok" : "degraded",
+      timestamp: Date.now(),
     });
   });
 
