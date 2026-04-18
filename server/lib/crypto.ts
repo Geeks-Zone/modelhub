@@ -45,8 +45,12 @@ export function encryptCredential(plaintext: string): string {
 /** Decripta um valor armazenado no formato `iv:ciphertext:tag` */
 export function decryptCredential(stored: string): string {
   const key = getEncryptionKey();
-  const [ivHex, cipherHex, tagHex] = stored.split(":");
-  if (!ivHex || !cipherHex || !tagHex) {
+  const parts = stored.split(":");
+  if (parts.length !== 3) {
+    throw new Error("Invalid encrypted credential format");
+  }
+  const [ivHex, cipherHex, tagHex] = parts;
+  if (!ivHex || cipherHex === undefined || !tagHex) {
     throw new Error("Invalid encrypted credential format");
   }
 
@@ -73,4 +77,3 @@ export function generateApiKey(): { raw: string; hash: string; prefix: string } 
 export function hashApiKey(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
-

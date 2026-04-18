@@ -26,13 +26,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+      - name: Build
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/test
+          DIRECT_URL: postgresql://user:pass@localhost:5432/test
+          NEON_AUTH_BASE_URL: https://test.neon.tech
+          NEON_AUTH_COOKIE_SECRET: test-secret-32-characters-long-value
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

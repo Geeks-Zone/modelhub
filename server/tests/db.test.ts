@@ -26,6 +26,7 @@ vi.mock("../env", () => ({
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe("db singleton", () => {
+  const env = process.env as Record<string, string | undefined>;
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalNodeEnv = process.env.NODE_ENV;
 
@@ -36,8 +37,8 @@ describe("db singleton", () => {
     const g = globalThis as { __prisma?: unknown };
     delete g.__prisma;
 
-    process.env.DATABASE_URL = "postgresql://user:pass@host-pooler.neon.tech/db?sslmode=require";
-    process.env.NODE_ENV = "test";
+    env.DATABASE_URL = "postgresql://user:pass@host-pooler.neon.tech/db?sslmode=require";
+    env.NODE_ENV = "test";
 
     const fakeClient = { $connect: vi.fn(), $disconnect: vi.fn() };
     mockPrismaClient.mockReturnValue(fakeClient);
@@ -46,8 +47,8 @@ describe("db singleton", () => {
   });
 
   afterEach(() => {
-    process.env.DATABASE_URL = originalDatabaseUrl;
-    process.env.NODE_ENV = originalNodeEnv;
+    env.DATABASE_URL = originalDatabaseUrl;
+    env.NODE_ENV = originalNodeEnv;
     const g = globalThis as { __prisma?: unknown };
     delete g.__prisma;
   });
@@ -69,13 +70,13 @@ describe("db singleton", () => {
   });
 
   it("lança erro quando DATABASE_URL não está definida", async () => {
-    delete process.env.DATABASE_URL;
+    delete env.DATABASE_URL;
 
     await expect(import("../lib/db")).rejects.toThrow("DATABASE_URL");
   });
 
   it("reutiliza o singleton em ambiente não-produção", async () => {
-    process.env.NODE_ENV = "development";
+    env.NODE_ENV = "development";
     const g = globalThis as { __prisma?: unknown };
 
     const { prisma: first } = await import("../lib/db");
@@ -90,7 +91,7 @@ describe("db singleton", () => {
   });
 
   it("não armazena singleton em produção", async () => {
-    process.env.NODE_ENV = "production";
+    env.NODE_ENV = "production";
     const g = globalThis as { __prisma?: unknown };
 
     await import("../lib/db");

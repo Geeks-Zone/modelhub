@@ -166,5 +166,5 @@ jobs:
           DATABASE_URL: postgresql://user:pass@localhost:5432/test
           DIRECT_URL: postgresql://user:pass@localhost:5432/test
           NEON_AUTH_BASE_URL: https://test.neon.tech
-          NEON_AUTH_COOKIE_SECRET: test-secret-32-characters-long
+          NEON_AUTH_COOKIE_SECRET: test-secret-32-characters-long-value
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

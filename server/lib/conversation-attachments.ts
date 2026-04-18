@@ -95,7 +95,7 @@ export function getAttachmentValidationError(file: File): string | null {
 }
 
 export function sanitizeExtractedText(text: string): string {
-  return text.replace(/\u0000/g, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return text.replace(/\u0000/g, " ").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function decodeXmlEntities(value: string): string {
