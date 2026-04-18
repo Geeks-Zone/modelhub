@@ -43,7 +43,9 @@ function getPrismaClient(): PrismaClientInstance {
  * Lazy Prisma proxy to avoid touching DATABASE_URL during Next.js build-time module evaluation.
  */
 export const prisma: PrismaClientInstance = new Proxy({} as PrismaClientInstance, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getPrismaClient(), prop, receiver);
+  get(_target, prop) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, client);
+    return typeof value === "function" ? value.bind(client) : value;
   },
 });
