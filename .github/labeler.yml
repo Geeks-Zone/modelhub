@@ -1,45 +1,61 @@
 # Configuração de labels automáticos para PRs
 
 documentation:
-  - '**/*.md'
-  - 'docs/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
 
 dependencies:
-  - 'package.json'
-  - 'pnpm-lock.yaml'
-  - 'package-lock.json'
-  - 'yarn.lock'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'pnpm-lock.yaml'
+          - 'package-lock.json'
+          - 'yarn.lock'
 
 frontend:
-  - 'components/**/*'
-  - 'app/**/*.tsx'
-  - 'app/**/*.jsx'
-  - '**/*.css'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'components/**/*'
+          - 'app/**/*.tsx'
+          - 'app/**/*.jsx'
+          - '**/*.css'
 
 backend:
-  - 'server/**/*'
-  - 'lib/**/*'
-  - 'app/api/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'server/**/*'
+          - 'lib/**/*'
+          - 'app/api/**/*'
 
 database:
-  - 'prisma/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'prisma/**/*'
 
 tests:
-  - '**/*.test.ts'
-  - '**/*.test.tsx'
-  - '**/*.spec.ts'
-  - '**/*.spec.tsx'
-  - 'vitest.config.ts'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.test.ts'
+          - '**/*.test.tsx'
+          - '**/*.spec.ts'
+          - '**/*.spec.tsx'
+          - 'vitest.config.ts'
 
 ci-cd:
-  - '.github/**/*'
-  - 'Dockerfile'
-  - 'docker-compose.yml'
-  - 'vercel.json'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**/*'
+          - 'Dockerfile'
+          - 'docker-compose.yml'
+          - 'vercel.json'
 
 configuration:
-  - '*.config.*'
-  - '.env.example'
-  - 'tsconfig.json'
-  - '.prettierrc'
-  - '.editorconfig'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.config.*'
+          - '.env.example'
+          - 'tsconfig.json'
+          - '.prettierrc'
+          - '.editorconfig'
