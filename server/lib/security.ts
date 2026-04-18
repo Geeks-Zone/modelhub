@@ -11,6 +11,16 @@ type RateLimitRecord = {
   resetAt: number;
 };
 
+/**
+ * AVISO DE PRODUÇÃO: Este rate limiter usa armazenamento in-memory.
+ * Em deployments com múltiplas instâncias (ex: Vercel, containers escalados),
+ * cada instância mantém seu próprio contador independente, o que significa
+ * que os limites configurados são efetivamente multiplicados pelo número de
+ * instâncias ativas.
+ *
+ * Para ambientes multi-instância, substitua este Map por um store externo
+ * (ex: Redis via Upstash) para garantir rate limiting consistente.
+ */
 const rateLimitStore = new Map<string, RateLimitRecord>();
 const DEV_ALLOWED_ORIGINS = [
   "http://localhost:3000",

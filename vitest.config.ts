@@ -27,12 +27,10 @@ export default defineConfig({
         "generated/**",
       ],
       thresholds: {
-        // Baseline inicial: suficientemente rigoroso para evitar regressão,
-        // mas compatível com a cobertura real da suíte atual.
-        statements: 40,
+        statements: 55,
         branches: 50,
-        functions: 40,
-        lines: 40,
+        functions: 55,
+        lines: 55,
       },
     },
   },
