@@ -12,6 +12,8 @@ vi.mock("@/lib/auth/server", () => ({ auth: { getSession: vi.fn().mockResolvedVa
 const { createDuckAiChatHandler } = await import("../providers/duckai");
 const { parseChatStream } = await import("@/lib/chat-stream");
 
+type DuckAiOverrides = NonNullable<Parameters<typeof createDuckAiChatHandler>[0]>;
+
 function createSseResponse(chunks: string[]) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -30,9 +32,9 @@ function createSseResponse(chunks: string[]) {
 }
 
 function createHandler(overrides: {
-  sendChatRequest: ReturnType<typeof vi.fn>;
-  getVqdData?: ReturnType<typeof vi.fn>;
-  sleep?: ReturnType<typeof vi.fn>;
+  sendChatRequest: DuckAiOverrides["sendChatRequest"];
+  getVqdData?: DuckAiOverrides["getVqdData"];
+  sleep?: DuckAiOverrides["sleep"];
 }) {
   return createDuckAiChatHandler({
     buildDuckAiDurableStreamPayload: vi.fn().mockResolvedValue({
@@ -41,14 +43,15 @@ function createHandler(overrides: {
       publicKey: { alg: "RSA-OAEP-256", e: "AQAB", ext: true, kty: "RSA", n: "key", use: "enc" },
     }),
     getReasoningEffort: vi.fn().mockResolvedValue(undefined),
-    getVqdData: overrides.getVqdData ?? vi.fn().mockResolvedValue({
-      browserFallbackUsed: false,
-      cookies: "",
-      hashPayload: "hash",
-      jsdomAttempts: 1,
-    }),
+    getVqdData: (overrides.getVqdData ??
+      vi.fn().mockResolvedValue({
+        browserFallbackUsed: false,
+        cookies: "",
+        hashPayload: "hash",
+        jsdomAttempts: 1,
+      })) as DuckAiOverrides["getVqdData"],
     sendChatRequest: overrides.sendChatRequest,
-    sleep: overrides.sleep ?? vi.fn().mockResolvedValue(undefined),
+    sleep: (overrides.sleep ?? vi.fn().mockResolvedValue(undefined)) as DuckAiOverrides["sleep"],
   });
 }
 
