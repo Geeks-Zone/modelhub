@@ -10,11 +10,13 @@ import { Pool } from "pg";
 
 import { PrismaClient } from "../../generated/prisma/client.ts";
 
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
+
 const globalForPrisma = globalThis as {
-  __prisma?: InstanceType<typeof PrismaClient>;
+  __prisma?: PrismaClientInstance;
 };
 
-function createPrismaClient(): InstanceType<typeof PrismaClient> {
+function createPrismaClient(): PrismaClientInstance {
   ensureRuntimeEnvValidated();
 
   const databaseUrl = process.env.DATABASE_URL;
@@ -29,8 +31,19 @@ function createPrismaClient(): InstanceType<typeof PrismaClient> {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.__prisma ?? createPrismaClient();
+function getPrismaClient(): PrismaClientInstance {
+  if (!globalForPrisma.__prisma) {
+    globalForPrisma.__prisma = createPrismaClient();
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.__prisma = prisma;
+  return globalForPrisma.__prisma;
 }
+
+/**
+ * Lazy Prisma proxy to avoid touching DATABASE_URL during Next.js build-time module evaluation.
+ */
+export const prisma: PrismaClientInstance = new Proxy({} as PrismaClientInstance, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getPrismaClient(), prop, receiver);
+  },
+});

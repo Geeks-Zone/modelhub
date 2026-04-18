@@ -1,7 +1,5 @@
 import { auth } from "@/lib/auth/server";
 
-const authHandlers = auth.handler();
-
 function getNeonAuthCanonicalOrigin(): string | null {
   const baseUrl = process.env.NEON_AUTH_BASE_URL;
   if (!baseUrl) {
@@ -39,9 +37,9 @@ type AuthRouteContext = {
 };
 
 export function GET(request: Request, context: AuthRouteContext): Promise<Response> {
-  return authHandlers.GET(withCanonicalAuthOrigin(request), context);
+  return auth.handler().GET(withCanonicalAuthOrigin(request), context);
 }
 
 export function POST(request: Request, context: AuthRouteContext): Promise<Response> {
-  return authHandlers.POST(withCanonicalAuthOrigin(request), context);
+  return auth.handler().POST(withCanonicalAuthOrigin(request), context);
 }
