@@ -1,26 +1,26 @@
-# 💡 Exemplos de Uso
+﻿# ðŸ’¡ Exemplos de Uso
 
-Exemplos práticos de como usar o ModelHub em diferentes cenários.
+Exemplos prÃ¡ticos de como usar o ModelHub em diferentes cenÃ¡rios.
 
-## 📋 Índice
+## ðŸ“‹ Ãndice
 
 - [Exemplos de API](#exemplos-de-api)
 - [Exemplos de SDK](#exemplos-de-sdk)
 - [Casos de Uso](#casos-de-uso)
-- [Integrações](#integrações)
+- [IntegraÃ§Ãµes](#integraÃ§Ãµes)
 
-## 🔌 Exemplos de API
+## ðŸ”Œ Exemplos de API
 
 ### Chat Simples
 
 ```bash
-curl -X POST https://your-modelhub.com/v1/chat/completions \
+curl -X POST https://www.modelhub.com.br/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "model": "gpt-4",
     "messages": [
-      {"role": "user", "content": "Olá! Como você está?"}
+      {"role": "user", "content": "OlÃ¡! Como vocÃª estÃ¡?"}
     ]
   }'
 ```
@@ -28,7 +28,7 @@ curl -X POST https://your-modelhub.com/v1/chat/completions \
 ### Chat com Sistema
 
 ```bash
-curl -X POST https://your-modelhub.com/v1/chat/completions \
+curl -X POST https://www.modelhub.com.br/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
@@ -36,7 +36,7 @@ curl -X POST https://your-modelhub.com/v1/chat/completions \
     "messages": [
       {
         "role": "system",
-        "content": "Você é um assistente especializado em programação Python."
+        "content": "VocÃª Ã© um assistente especializado em programaÃ§Ã£o Python."
       },
       {
         "role": "user",
@@ -51,13 +51,13 @@ curl -X POST https://your-modelhub.com/v1/chat/completions \
 ### Streaming
 
 ```bash
-curl -X POST https://your-modelhub.com/v1/chat/completions \
+curl -X POST https://www.modelhub.com.br/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "model": "gpt-4",
     "messages": [
-      {"role": "user", "content": "Conte uma história curta"}
+      {"role": "user", "content": "Conte uma histÃ³ria curta"}
     ],
     "stream": true
   }'
@@ -66,26 +66,26 @@ curl -X POST https://your-modelhub.com/v1/chat/completions \
 ### Listar Modelos
 
 ```bash
-curl https://your-modelhub.com/v1/models \
+curl https://www.modelhub.com.br/v1/models \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-## 🐍 Python
+## ðŸ Python
 
-### Básico
+### BÃ¡sico
 
 ```python
 from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 response = client.chat.completions.create(
     model="gpt-4",
     messages=[
-        {"role": "user", "content": "Olá!"}
+        {"role": "user", "content": "OlÃ¡!"}
     ]
 )
 
@@ -99,12 +99,12 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 stream = client.chat.completions.create(
     model="gpt-4",
-    messages=[{"role": "user", "content": "Conte uma história"}],
+    messages=[{"role": "user", "content": "Conte uma histÃ³ria"}],
     stream=True
 )
 
@@ -113,14 +113,14 @@ for chunk in stream:
         print(chunk.choices[0].delta.content, end="")
 ```
 
-### Múltiplas Mensagens
+### MÃºltiplas Mensagens
 
 ```python
 messages = [
-    {"role": "system", "content": "Você é um poeta."},
-    {"role": "user", "content": "Escreva um haiku sobre programação"},
-    {"role": "assistant", "content": "Código flui suave\nBugs dançam na tela brilhante\nDebug traz a paz"},
-    {"role": "user", "content": "Agora sobre café"}
+    {"role": "system", "content": "VocÃª Ã© um poeta."},
+    {"role": "user", "content": "Escreva um haiku sobre programaÃ§Ã£o"},
+    {"role": "assistant", "content": "CÃ³digo flui suave\nBugs danÃ§am na tela brilhante\nDebug traz a paz"},
+    {"role": "user", "content": "Agora sobre cafÃ©"}
 ]
 
 response = client.chat.completions.create(
@@ -139,11 +139,11 @@ import time
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 models = ["gpt-4", "claude-3-5-sonnet-20241022", "gemini-2.0-flash-exp"]
-prompt = "Explique inteligência artificial em uma frase."
+prompt = "Explique inteligÃªncia artificial em uma frase."
 
 for model in models:
     start = time.time()
@@ -161,23 +161,23 @@ for model in models:
     print(f"Tokens: {response.usage.total_tokens}")
 ```
 
-## 📘 JavaScript/TypeScript
+## ðŸ“˜ JavaScript/TypeScript
 
-### Node.js Básico
+### Node.js BÃ¡sico
 
 ```typescript
 import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'YOUR_API_KEY',
-  baseURL: 'https://your-modelhub.com/v1'
+  baseURL: 'https://www.modelhub.com.br/v1'
 });
 
 async function chat() {
   const response = await client.chat.completions.create({
     model: 'gpt-4',
     messages: [
-      { role: 'user', content: 'Olá!' }
+      { role: 'user', content: 'OlÃ¡!' }
     ]
   });
 
@@ -194,13 +194,13 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'YOUR_API_KEY',
-  baseURL: 'https://your-modelhub.com/v1'
+  baseURL: 'https://www.modelhub.com.br/v1'
 });
 
 async function streamChat() {
   const stream = await client.chat.completions.create({
     model: 'gpt-4',
-    messages: [{ role: 'user', content: 'Conte uma história' }],
+    messages: [{ role: 'user', content: 'Conte uma histÃ³ria' }],
     stream: true
   });
 
@@ -223,7 +223,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_API_KEY!,
-  baseURL: 'https://your-modelhub.com/v1',
+  baseURL: 'https://www.modelhub.com.br/v1',
   dangerouslyAllowBrowser: true // Apenas para demo
 });
 
@@ -268,7 +268,7 @@ export function ChatComponent() {
 }
 ```
 
-## 🎯 Casos de Uso
+## ðŸŽ¯ Casos de Uso
 
 ### Chatbot de Suporte
 
@@ -277,16 +277,16 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 def support_bot(user_message: str, conversation_history: list):
     messages = [
         {
             "role": "system",
-            "content": """Você é um assistente de suporte técnico.
+            "content": """VocÃª Ã© um assistente de suporte tÃ©cnico.
             Seja educado, claro e objetivo.
-            Se não souber a resposta, admita e ofereça alternativas."""
+            Se nÃ£o souber a resposta, admita e ofereÃ§a alternativas."""
         }
     ]
     
@@ -308,7 +308,7 @@ bot_response = support_bot(user_msg, history)
 print(bot_response)
 ```
 
-### Análise de Sentimento
+### AnÃ¡lise de Sentimento
 
 ```python
 def analyze_sentiment(text: str):
@@ -335,7 +335,7 @@ sentiment = analyze_sentiment(text)
 print(f"Sentimento: {sentiment}")
 ```
 
-### Gerador de Código
+### Gerador de CÃ³digo
 
 ```python
 def generate_code(description: str, language: str = "python"):
@@ -344,11 +344,11 @@ def generate_code(description: str, language: str = "python"):
         messages=[
             {
                 "role": "system",
-                "content": f"Você é um especialista em {language}. Gere código limpo e bem documentado."
+                "content": f"VocÃª Ã© um especialista em {language}. Gere cÃ³digo limpo e bem documentado."
             },
             {
                 "role": "user",
-                "content": f"Crie uma função que: {description}"
+                "content": f"Crie uma funÃ§Ã£o que: {description}"
             }
         ],
         temperature=0.3
@@ -357,7 +357,7 @@ def generate_code(description: str, language: str = "python"):
     return response.choices[0].message.content
 
 # Uso
-code = generate_code("ordena uma lista de dicionários por uma chave específica")
+code = generate_code("ordena uma lista de dicionÃ¡rios por uma chave especÃ­fica")
 print(code)
 ```
 
@@ -370,7 +370,7 @@ def summarize(text: str, max_words: int = 100):
         messages=[
             {
                 "role": "system",
-                "content": f"Resuma o texto em no máximo {max_words} palavras."
+                "content": f"Resuma o texto em no mÃ¡ximo {max_words} palavras."
             },
             {
                 "role": "user",
@@ -388,7 +388,7 @@ summary = summarize(long_text, max_words=50)
 print(summary)
 ```
 
-## 🔗 Integrações
+## ðŸ”— IntegraÃ§Ãµes
 
 ### Langchain
 
@@ -398,13 +398,13 @@ from langchain.schema import HumanMessage, SystemMessage
 
 llm = ChatOpenAI(
     openai_api_key="YOUR_API_KEY",
-    openai_api_base="https://your-modelhub.com/v1",
+    openai_api_base="https://www.modelhub.com.br/v1",
     model_name="gpt-4"
 )
 
 messages = [
-    SystemMessage(content="Você é um assistente útil."),
-    HumanMessage(content="Olá!")
+    SystemMessage(content="VocÃª Ã© um assistente Ãºtil."),
+    HumanMessage(content="OlÃ¡!")
 ]
 
 response = llm(messages)
@@ -418,11 +418,11 @@ from llama_index.llms import OpenAI
 
 llm = OpenAI(
     api_key="YOUR_API_KEY",
-    api_base="https://your-modelhub.com/v1",
+    api_base="https://www.modelhub.com.br/v1",
     model="gpt-4"
 )
 
-response = llm.complete("Explique inteligência artificial")
+response = llm.complete("Explique inteligÃªncia artificial")
 print(response)
 ```
 
@@ -434,7 +434,7 @@ from openai import OpenAI
 
 client_openai = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 intents = discord.Intents.default()
@@ -469,7 +469,7 @@ app = App(token="YOUR_SLACK_TOKEN")
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 @app.message("hello")
@@ -484,9 +484,9 @@ def message_hello(message, say):
 app.start(port=3000)
 ```
 
-## 📚 Recursos
+## ðŸ“š Recursos
 
-- [Documentação da API](API.md)
+- [DocumentaÃ§Ã£o da API](API.md)
 - [OpenAI Python SDK](https://github.com/openai/openai-python)
 - [OpenAI Node.js SDK](https://github.com/openai/openai-node)
 - [Langchain Docs](https://python.langchain.com/)
@@ -494,4 +494,5 @@ app.start(port=3000)
 
 ---
 
-**Tem um exemplo interessante?** Contribua com esta documentação!
+**Tem um exemplo interessante?** Contribua com esta documentaÃ§Ã£o!
+

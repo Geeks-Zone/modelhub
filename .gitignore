@@ -76,7 +76,9 @@ Thumbs.db
 
 # Monorepo (se aplicável)
 apps/
-packages/
+packages/*
+!packages/openclaw-cli/
+!packages/openclaw-cli/**
 
 # Custom
 .github/instructions/codacy.instructions.md

@@ -14,7 +14,6 @@ export default defineConfig({
       "**/dist/**",
       "**/node_modules/**",
       "apps/**",
-      "packages/**",
     ],
     coverage: {
       provider: "v8",
