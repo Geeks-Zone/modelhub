@@ -8,6 +8,7 @@ import {
   messageContentAsText,
   upstreamErrorResponse,
   type ChatMessage,
+  type ProviderModel,
 } from '../lib/provider-core'
 import {
   deobfuscateChallenge,
@@ -21,7 +22,7 @@ export const DUCKAI_MODELS = [
   { capabilities: { documents: true, images: true }, id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5 (Duck.ai)' },
   { capabilities: { documents: true, images: false }, id: 'meta-llama/Llama-4-Scout-17B-16E-Instruct', name: 'Llama 4 Scout (Duck.ai)' },
   { capabilities: { documents: true, images: false }, id: 'mistralai/Mistral-Small-24B-Instruct-2501', name: 'Mistral Small 3 (Duck.ai)' },
-  { capabilities: { documents: true, images: false }, id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B (Duck.ai)' },
+  { capabilities: { documents: true, images: false }, id: 'tinfoil/gpt-oss-120b', name: 'GPT-OSS 120B (Duck.ai)' },
 ]
 
 const MODELS_URL = 'https://duck.ai/duckchat/v1/models'
@@ -77,6 +78,8 @@ type DuckAiLogPayload = {
 }
 type DuckAiModelMetadata = {
   accessTier?: string[]
+  /** When false, Duck.ai will reject chat for this model for the anonymous session. */
+  entityHasAccess?: boolean
   id: string
   name: string
   supportedReasoningEffort?: DuckAiReasoningEffort[]
@@ -136,7 +139,10 @@ async function getJsdomCtor(): Promise<JsdomCtor> {
 function isJsdomUnavailableError(error: Error): boolean {
   return (
     error.message.includes('Failed to load external module jsdom') ||
-    error.message.includes('ERR_REQUIRE_ESM')
+    error.message.includes('ERR_REQUIRE_ESM') ||
+    (error as NodeJS.ErrnoException).code === 'ENOENT' ||
+    error.message.includes('default-stylesheet.css') ||
+    (error.message.includes('ENOENT') && error.message.includes('jsdom'))
   )
 }
 
@@ -835,16 +841,42 @@ const VISION_CAPABLE_IDS = new Set(
   DUCKAI_MODELS.filter((m) => m.capabilities.images).map((m) => m.id),
 )
 
-export async function fetchDuckAiModels() {
-  const models = await fetchDuckAiModelMetadata()
-
+function duckAiModelsFromMetadata(models: DuckAiModelMetadata[]): ProviderModel[] {
   return models
     .filter((m) => m.accessTier?.includes('free'))
+    .filter((m) => m.entityHasAccess !== false)
     .map((m) => ({
       capabilities: { documents: true, images: VISION_CAPABLE_IDS.has(m.id) },
       id: m.id,
       name: `${m.name} (Duck.ai)`,
     }))
+}
+
+/** Static fallback list (same shape as dynamic) when the API is empty or unreachable. */
+function duckAiModelsStaticFallback(): ProviderModel[] {
+  return DUCKAI_MODELS.map((m) => ({
+    capabilities: m.capabilities,
+    id: m.id,
+    name: m.name,
+  }))
+}
+
+export async function fetchDuckAiModels(): Promise<ProviderModel[]> {
+  try {
+    const models = await fetchDuckAiModelMetadata()
+    const mapped = duckAiModelsFromMetadata(models)
+    if (mapped.length > 0) {
+      return mapped
+    }
+    console.warn('[Duck.ai] Model list from API was empty after filters; using static fallback.')
+  } catch (error) {
+    console.warn(
+      '[Duck.ai] Failed to load model metadata:',
+      error instanceof Error ? error.message : error,
+    )
+  }
+
+  return duckAiModelsStaticFallback()
 }
 
 async function fetchDuckAiModelMetadata(): Promise<DuckAiModelMetadata[]> {

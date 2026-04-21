@@ -33,13 +33,14 @@
     "node": ">=22.0.0",
     "pnpm": ">=10.0.0"
   },
-  "packageManager": "pnpm@10.18.0",
+  "packageManager": "pnpm@10.33.0",
   "bin": {
     "modelhub": "./scripts/modelhub-cli.mjs"
   },
   "scripts": {
     "build": "next build",
     "build:vercel": "node scripts/vercel-build.mjs",
+    "predev": "pnpm prisma:generate",
     "dev": "next dev",
     "lint": "eslint",
     "postinstall": "pnpm prisma:generate",
@@ -53,7 +54,12 @@
     "test:duckai-live": "node scripts/run-duckai-live-test.mjs",
     "openclaw:setup": "node ./scripts/modelhub-cli.mjs openclaw setup",
     "openclaw:doctor": "node ./scripts/modelhub-cli.mjs doctor",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vercel:env:pull": "vercel env pull .env.local -y --environment development",
+    "vercel:env:pull:preview": "vercel env pull .env.vercel.preview.local -y --environment preview",
+    "vercel:env:pull:production": "vercel env pull .env.vercel.production.local -y --environment production",
+    "vercel:env:diff": "node scripts/vercel-env-sync.mjs",
+    "vercel:env:sync": "node scripts/vercel-env-sync.mjs --pull"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
@@ -62,7 +68,6 @@
     "@prisma/client": "^7.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "fast-xml-parser": "^5.7.1",
     "highlight.js": "^11.11.1",
     "hono": "^4.12.14",
     "jsdom": "^29.0.2",

@@ -1,13 +1,5 @@
 import { PROVIDER_CATALOG } from "./lib/catalog";
 
-for (const envFile of [".env", ".env.local"]) {
-  try {
-    process.loadEnvFile(envFile);
-  } catch {
-    // Next.js already handles env loading during app runtime.
-  }
-}
-
 const STRICT_VERCEL_ENVS = new Set(["preview", "production"]);
 
 let runtimeEnvValidated = false;
@@ -83,6 +75,11 @@ function validateNeonAuthBaseUrl(baseUrl: string | undefined, issues: string[]):
 function validateCookieSecret(cookieSecret: string | undefined, issues: string[]): void {
   if (!cookieSecret?.trim()) {
     issues.push("NEON_AUTH_COOKIE_SECRET is required.");
+    return;
+  }
+
+  if (cookieSecret.length < 32) {
+    issues.push("NEON_AUTH_COOKIE_SECRET must be at least 32 characters (Neon Auth requirement).");
   }
 }
 
@@ -168,6 +165,11 @@ export function shouldValidateRuntimeEnv(env: NodeJS.ProcessEnv = process.env): 
   // Skip validation during Next.js build phase — secrets are only available at runtime
   if (env.NEXT_PHASE === "phase-production-build") {
     return false;
+  }
+
+  // Local dev: same required vars as production so auth/DB fail with clear messages, not library internals
+  if (env.NODE_ENV === "development") {
+    return true;
   }
 
   return isStrictVercelEnv(env);

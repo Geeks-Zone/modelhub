@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import type { ProviderModel } from "@/lib/contracts";
+import {
+  MODELHUB_EFFECTIVE_MODEL_HEADER,
+  MODELHUB_MODEL_FALLBACK_USED_HEADER,
+  MODELHUB_MODELS_ATTEMPTED_HEADER,
+  MODELHUB_REQUESTED_MODEL_HEADER,
+  type ProviderModel,
+} from "@/lib/contracts";
 import {
   createMessageContentFallback,
   extractPlainTextFromParts,
@@ -21,6 +27,7 @@ import {
   ExternalLinkIcon,
   KeyRoundIcon,
   Loader2Icon,
+  PanelRightIcon,
   PaperclipIcon,
   PencilIcon,
   RefreshCwIcon,
@@ -56,7 +63,16 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { apiFetch, apiJson, apiJsonRequest, testProviderCredentials } from "@/lib/api";
@@ -98,6 +114,12 @@ type ChatMessage = {
   id: string;
   isError?: boolean;
   modelLabel?: string;
+  /** Só preenchido quando o backend confirmou fallback (`x-modelhub-model-fallback-used: true`). */
+  modelFallbackMeta?: {
+    attemptedIds: string[];
+    effectiveLabel: string;
+    requestedLabel: string;
+  };
   parts?: HydratedConversationMessagePart[];
   role: "assistant" | "user";
   toolCalls: ParsedToolCall[];
@@ -128,7 +150,13 @@ function resolveAssistantModelLabel(input: {
     : null;
 
   if (modelName && input.providerLabel) {
-    return `${modelName} (${input.providerLabel})`;
+    const trimmed = modelName.trim();
+    const suffix = `(${input.providerLabel})`;
+    if (trimmed.endsWith(suffix)) {
+      return trimmed;
+    }
+
+    return `${trimmed} (${input.providerLabel})`;
   }
 
   return modelName ?? input.providerLabel;
@@ -229,6 +257,8 @@ export function ChatPage() {
   // Settings/personalization dialog
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+
   // Stop generation
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -253,6 +283,14 @@ export function ChatPage() {
   const selectedProvider = useMemo(
     () => providers.find((provider) => provider.id === selectedProviderId) ?? null,
     [providers, selectedProviderId],
+  );
+  const providersWithoutApiKey = useMemo(
+    () => providers.filter((p) => !(p.requiredKeys?.length)),
+    [providers],
+  );
+  const providersWithApiKey = useMemo(
+    () => providers.filter((p) => (p.requiredKeys?.length ?? 0) > 0),
+    [providers],
   );
   const selectedModel = useMemo(
     () => models.find((model) => model.id === selectedModelId) ?? null,
@@ -856,6 +894,62 @@ export function ChatPage() {
         throw requestError;
       }
 
+      const effectiveModelIdFromHeader =
+        response.headers.get(MODELHUB_EFFECTIVE_MODEL_HEADER)?.trim() ?? "";
+      const requestedModelFromHeader =
+        response.headers.get(MODELHUB_REQUESTED_MODEL_HEADER)?.trim() ?? "";
+      const fallbackUsedHeader =
+        response.headers.get(MODELHUB_MODEL_FALLBACK_USED_HEADER) === "true";
+      const attemptedRaw = response.headers.get(MODELHUB_MODELS_ATTEMPTED_HEADER) ?? "";
+      const attemptedIds = attemptedRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const resolvedAssistantLabel =
+        effectiveModelIdFromHeader.length > 0
+          ? resolveAssistantModelLabel({
+              modelId: effectiveModelIdFromHeader,
+              models,
+              providerLabel: selectedProvider.label,
+            })
+          : assistantModelLabel;
+
+      const modelFallbackMeta =
+        fallbackUsedHeader &&
+        requestedModelFromHeader.length > 0 &&
+        effectiveModelIdFromHeader.length > 0 &&
+        attemptedIds.length > 0
+          ? {
+              requestedLabel:
+                resolveAssistantModelLabel({
+                  modelId: requestedModelFromHeader,
+                  models,
+                  providerLabel: selectedProvider.label,
+                }) ?? requestedModelFromHeader,
+              effectiveLabel: resolvedAssistantLabel ?? effectiveModelIdFromHeader,
+              attemptedIds: [...attemptedIds],
+            }
+          : undefined;
+
+      setMessages((current) =>
+        current.map((message) => {
+          if (message.id !== assistantMessageId) {
+            return message;
+          }
+          const next: ChatMessage = {
+            ...message,
+            modelLabel: resolvedAssistantLabel,
+          };
+          if (modelFallbackMeta) {
+            next.modelFallbackMeta = modelFallbackMeta;
+          } else {
+            delete next.modelFallbackMeta;
+          }
+          return next;
+        }),
+      );
+
       const toolMap = new Map<string, ParsedToolCall>();
       const parsedStream = await parseChatStream(response, {
         onTextDelta(delta) {
@@ -1176,35 +1270,49 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="flex min-h-0 flex-1 flex-col">
-      {/* Toolbar compacta */}
-      <div className="flex h-12 shrink-0 items-center border-b border-border/60 px-3 md:px-4">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Toolbar: uma linha; em viewports estreitas faz scroll horizontal em vez de quebrar */}
+      <div className="flex min-h-12 shrink-0 items-center border-b border-border/60 px-3 md:px-4">
+        <div className="flex min-w-0 flex-1 touch-pan-x flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1.5 [scrollbar-width:thin]">
           <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
-            <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-[200px] text-xs">
+            <SelectTrigger className="h-8 w-auto max-w-[min(200px,55vw)] shrink-0 text-xs sm:min-w-[140px] sm:max-w-[200px]">
               <SelectValue placeholder="Provider" />
             </SelectTrigger>
             <SelectContent>
-              <SelectGroup>
-                {providers.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
+              {providersWithoutApiKey.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Sem chave de API</SelectLabel>
+                  {providersWithoutApiKey.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {providersWithoutApiKey.length > 0 && providersWithApiKey.length > 0 ? <SelectSeparator /> : null}
+              {providersWithApiKey.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Com chave de API</SelectLabel>
+                  {providersWithApiKey.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
 
           {loadingModels ? (
-            <Skeleton className="h-8 w-[160px]" />
+            <Skeleton className="h-8 w-[160px] shrink-0" />
           ) : (
             <Select
               value={selectedModelId}
               onValueChange={setSelectedModelId}
               disabled={!selectedProvider?.hasModels || !selectedProviderReady || models.length === 0}
             >
-              <SelectTrigger className="h-8 w-auto min-w-[140px] max-w-[240px] text-xs">
+              <SelectTrigger className="h-8 w-auto max-w-[min(240px,60vw)] shrink-0 text-xs sm:min-w-[140px] sm:max-w-[240px]">
                 <SelectValue
                   placeholder={
                     !selectedProvider?.hasModels
@@ -1227,25 +1335,35 @@ export function ChatPage() {
             </Select>
           )}
 
-          <Badge variant={selectedProviderReady ? "outline" : "destructive"} className="text-xs">
-            {selectedProviderReady ? "Pronto" : "Credenciais pendentes"}
+          <Badge
+            variant={selectedProviderReady ? "outline" : "destructive"}
+            className="shrink-0 whitespace-nowrap text-xs"
+          >
+            {selectedProviderReady ? (
+              "Pronto"
+            ) : (
+              <>
+                <span className="sm:hidden">Pendente</span>
+                <span className="hidden sm:inline">Credenciais pendentes</span>
+              </>
+            )}
           </Badge>
 
           <Button
             variant={temporaryChat ? "default" : "ghost"}
             size="sm"
-            className="h-8 text-xs"
+            className="h-8 shrink-0 text-xs"
             onClick={() => setTemporaryChat((v) => !v)}
             title={temporaryChat ? "Chat temporário ativo — mensagens não serão salvas" : "Ativar chat temporário"}
           >
             <ShieldOffIcon className="size-3.5" />
-            <span className="hidden sm:inline">{temporaryChat ? "Temporário" : "Temporário"}</span>
+            <span className="hidden sm:inline">{temporaryChat ? "Sem salvar" : "Temporário"}</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-xs"
+            className="h-8 shrink-0 text-xs"
             onClick={() => setSettingsOpen(true)}
             title="Personalização (instruções e memória)"
           >
@@ -1257,7 +1375,7 @@ export function ChatPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 text-xs"
+              className="h-8 shrink-0 text-xs"
               onClick={() => void handleShareConversation()}
               title="Compartilhar conversa"
             >
@@ -1266,11 +1384,27 @@ export function ChatPage() {
           )}
 
           {(selectedProvider?.requiredKeys?.length ?? 0) > 0 && !selectedProviderReady && (
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setCredentialDialogOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 text-xs"
+              onClick={() => setCredentialDialogOpen(true)}
+            >
               <Settings2Icon className="size-3.5" />
               <span className="hidden sm:inline">Configurar</span>
             </Button>
           )}
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 md:hidden"
+            type="button"
+            onClick={() => setMobileHistoryOpen(true)}
+            title="Histórico de conversas"
+          >
+            <PanelRightIcon className="size-4" />
+          </Button>
         </div>
       </div>
 
@@ -1330,6 +1464,28 @@ export function ChatPage() {
                   {message.role === "user" ? <UserIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
                 </div>
                 <div className="flex max-w-[85%] flex-col gap-1 sm:max-w-[75%]">
+                  {message.role === "assistant" && message.modelFallbackMeta ? (
+                    <Alert className="border-amber-500/40 bg-amber-500/10 py-2 text-amber-950 dark:text-amber-50">
+                      <AlertTitle className="text-xs font-semibold">Modelo diferente do que você selecionou</AlertTitle>
+                      <AlertDescription className="text-xs leading-relaxed text-amber-950/90 dark:text-amber-50/90">
+                        A API não aceitou{" "}
+                        <span className="font-medium text-foreground">
+                          {message.modelFallbackMeta.requestedLabel}
+                        </span>{" "}
+                        nesta requisição (por exemplo{" "}
+                        <code className="rounded bg-background/80 px-1 py-0.5 text-[11px]">model_not_found</code> ou
+                        sem acesso). O backend tentou, nesta ordem:{" "}
+                        <span className="break-all font-mono text-[11px]">
+                          {message.modelFallbackMeta.attemptedIds.join(" → ")}
+                        </span>
+                        . O texto abaixo foi gerado por{" "}
+                        <span className="font-medium text-foreground">
+                          {message.modelFallbackMeta.effectiveLabel}
+                        </span>
+                        , não pelo modelo escolhido no seletor.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                   <div
                     className={cn(
                       "rounded-2xl px-3.5 py-2.5 text-sm",
@@ -1748,6 +1904,8 @@ export function ChatPage() {
       </div>
       <ChatHistorySidebar
         activeConversationId={activeConversationId}
+        mobileSheetOpen={mobileHistoryOpen}
+        onMobileSheetOpenChange={setMobileHistoryOpen}
         onSelectConversation={(id) => void handleSelectConversation(id)}
         onNewChat={handleNewChat}
         refreshKey={sidebarRefreshKey}

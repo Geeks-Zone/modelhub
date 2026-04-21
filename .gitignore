@@ -82,3 +82,6 @@ packages/*
 
 # Custom
 .github/instructions/codacy.instructions.md
+
+.vercel
+.env*.local

@@ -1,10 +1,13 @@
+import { createHash } from 'node:crypto'
+
 import { Hono } from 'hono'
 import { z } from 'zod'
 
+import { MODELHUB_FALLBACK_DIAGNOSTIC_HEADER } from '@/lib/contracts'
 import type { ProviderModelCapabilities } from '@/lib/chat-parts'
 import { prisma } from './db'
 import { decryptCredential } from './crypto'
-import { getCachedModels } from './model-cache'
+import { DEFAULT_MODELS_CACHE_TTL_MS, getCachedModels } from './model-cache'
 import {
   MAX_DOCUMENT_CONTEXT_CHARS,
   buildDocumentContextBlock,
@@ -168,6 +171,8 @@ type ProviderConfig = {
   basePath: string
   models: ProviderModel[]
   defaultModel: string
+  /** TTL for dynamic model lists (`GET …/api/models`). Default 1h. */
+  modelsCacheTtlMs?: number
   chat: (
     messages: ChatMessage[],
     modelId: string,
@@ -179,6 +184,20 @@ type ProviderConfig = {
   testCredentials?: (credentials: Record<string, string>) => Promise<{ ok: boolean; error?: string }>
   /** Optional function to fetch models dynamically from upstream. Results are cached with TTL. */
   fetchModels?: (credentials?: Record<string, string>) => Promise<ProviderModel[]>
+}
+
+function buildProviderModelsCacheKeySuffix(
+  userId: string | undefined,
+  credentials: Record<string, string>,
+): string {
+  const uid = userId ?? 'anon'
+  const keys = Object.keys(credentials).sort()
+  if (keys.length === 0) {
+    return `${uid}:env`
+  }
+  const payload = keys.map((k) => `${k}=${credentials[k] ?? ''}`).join('\n')
+  const hash = createHash('sha256').update(payload).digest('base64url').slice(0, 32)
+  return `${uid}:${hash}`
 }
 
 function normalizeContentParts(parts: RawMessagePart[]): ChatInputContentPart[] {
@@ -257,6 +276,7 @@ async function getModelCapabilities(
   config: ProviderConfig,
   modelId: string,
   credentials: Record<string, string>,
+  userId: string | undefined,
 ): Promise<ProviderModelCapabilities> {
   const staticMatch = config.models.find((model) => model.id === modelId)
   if (staticMatch) {
@@ -268,6 +288,11 @@ async function getModelCapabilities(
       config.providerId,
       () => config.fetchModels?.(credentials) ?? Promise.resolve([]),
       config.models,
+      config.modelsCacheTtlMs ?? DEFAULT_MODELS_CACHE_TTL_MS,
+      {
+        cacheKeySuffix: buildProviderModelsCacheKeySuffix(userId, credentials),
+        staleWhileRevalidate: false,
+      },
     )
     const dynamicMatch = fetchedModels.find((model) => model.id === modelId)
     if (dynamicMatch) {
@@ -285,7 +310,12 @@ export async function resolveMessagesForProvider(input: {
   modelId: string
   userId?: string
 }): Promise<ChatMessage[]> {
-  const modelCapabilities = await getModelCapabilities(input.config, input.modelId, input.credentials)
+  const modelCapabilities = await getModelCapabilities(
+    input.config,
+    input.modelId,
+    input.credentials,
+    input.userId,
+  )
   const attachmentIds = new Set<string>()
 
   for (const message of input.messages) {
@@ -904,6 +934,8 @@ function logProviderError(providerId: string, error: unknown): void {
  * Registra uso no banco de dados em background (fire-and-forget).
  * Nunca lança erro — falhas são logadas silenciosamente.
  */
+const MAX_USAGE_LOG_ERROR_CHARS = 8000
+
 function logUsage(data: {
   userId: string | undefined
   apiKeyId: string | undefined
@@ -911,8 +943,14 @@ function logUsage(data: {
   modelId: string | undefined
   endpoint: string | undefined
   statusCode: number
+  errorDetail?: string | null
 }): void {
   if (!data.userId) return // Sem usuário autenticado, não loga
+
+  const errorDetail =
+    data.errorDetail && data.errorDetail.length > 0
+      ? data.errorDetail.slice(0, MAX_USAGE_LOG_ERROR_CHARS)
+      : null
 
   prisma.usageLog.create({
     data: {
@@ -922,6 +960,7 @@ function logUsage(data: {
       modelId: data.modelId ?? null,
       endpoint: data.endpoint ?? null,
       statusCode: data.statusCode,
+      errorDetail,
     },
   }).catch((err: unknown) => {
     console.error('[usage-log] Failed to record usage', err)
@@ -932,6 +971,7 @@ export function upstreamErrorResponse(
   providerName: string,
   status: number,
   detailsForLog?: string,
+  extraFields?: Record<string, unknown>,
 ): Response {
   if (detailsForLog) {
     console.error(`[${providerName}] upstream error ${status}: ${detailsForLog.slice(0, 500)}`)
@@ -939,12 +979,33 @@ export function upstreamErrorResponse(
     console.error(`[${providerName}] upstream error ${status}`)
   }
 
-  return jsonErrorResponse(status, `${providerName} upstream error`)
+  const upstreamSnippet = detailsForLog?.slice(0, 4000)
+  const fromUpstream = upstreamSnippet ? { upstream: upstreamSnippet } : {}
+  const details =
+    Object.keys(fromUpstream).length > 0 || (extraFields && Object.keys(extraFields).length > 0)
+      ? { ...fromUpstream, ...extraFields }
+      : undefined
+  return jsonErrorResponse(status, `${providerName} upstream error`, details)
+}
+
+function formatProviderErrorDetail(error: unknown): string {
+  if (error instanceof Error) {
+    let s = error.message
+    if (error.cause !== undefined) {
+      const c = error.cause instanceof Error ? error.cause.message : String(error.cause)
+      s = `${s} (${c})`
+    }
+    return s
+  }
+  return String(error)
 }
 
 export function internalProviderErrorResponse(providerName: string, error: unknown): Response {
   console.error(`[${providerName}] internal error`, error)
-  return jsonErrorResponse(500, `${providerName} request failed`)
+  const detail = formatProviderErrorDetail(error)
+  const max = 2000
+  const truncated = detail.length > max ? `${detail.slice(0, max)}…` : detail
+  return jsonErrorResponse(500, `${providerName} request failed: ${truncated}`)
 }
 
 function splitCombinedSetCookieHeader(headerValue: string): string[] {
@@ -1017,6 +1078,11 @@ export function createProviderApp(config: ProviderConfig) {
         config.providerId,
         () => config.fetchModels?.(credentials) ?? Promise.resolve([]),
         config.models,
+        config.modelsCacheTtlMs ?? DEFAULT_MODELS_CACHE_TTL_MS,
+        {
+          cacheKeySuffix: buildProviderModelsCacheKeySuffix(userId, credentials),
+          staleWhileRevalidate: false,
+        },
       )
       return c.json({ models })
     }
@@ -1104,7 +1170,26 @@ export function createProviderApp(config: ProviderConfig) {
 
       const response = await config.chat(resolvedMessages, modelId, rawBody, credentials, userId)
 
-      // Usage logging (fire-and-forget)
+      let errorDetail: string | null = null
+      if (response.status >= 400) {
+        try {
+          errorDetail = (await response.clone().text()).slice(0, MAX_USAGE_LOG_ERROR_CHARS)
+        } catch {
+          errorDetail = null
+        }
+      } else {
+        const diagB64 = response.headers.get(MODELHUB_FALLBACK_DIAGNOSTIC_HEADER)?.trim()
+        if (diagB64) {
+          try {
+            const json = Buffer.from(diagB64, 'base64url').toString('utf8')
+            const parsed: unknown = JSON.parse(json)
+            errorDetail = JSON.stringify(parsed, null, 2).slice(0, MAX_USAGE_LOG_ERROR_CHARS)
+          } catch {
+            errorDetail = '[model_fallback] diagnóstico em header inválido ou truncado'
+          }
+        }
+      }
+
       logUsage({
         userId,
         apiKeyId,
@@ -1112,6 +1197,7 @@ export function createProviderApp(config: ProviderConfig) {
         modelId,
         endpoint: c.req.path,
         statusCode: response.status,
+        errorDetail,
       })
 
       return response
@@ -1127,6 +1213,7 @@ export function createProviderApp(config: ProviderConfig) {
       logProviderError(config.providerId, error)
 
       // Log falhas também
+      const errMsg = error instanceof Error ? error.message : String(error)
       logUsage({
         userId: c.get('userId') as string | undefined,
         apiKeyId: c.get('apiKeyId') as string | undefined,
@@ -1134,6 +1221,7 @@ export function createProviderApp(config: ProviderConfig) {
         modelId: undefined,
         endpoint: c.req.path,
         statusCode: 500,
+        errorDetail: errMsg.slice(0, MAX_USAGE_LOG_ERROR_CHARS),
       })
 
       return jsonErrorResponse(500, 'Unable to process provider request')

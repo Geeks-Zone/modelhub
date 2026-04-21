@@ -1,5 +1,7 @@
 import {
   ActivityIcon,
+  GlobeIcon,
+  PlugIcon,
   SparklesIcon,
 } from "lucide-react";
 
@@ -23,8 +25,7 @@ export function HeroSection() {
         </h1>
         <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
           Conecte, gerencie e converse com múltiplos modelos de inteligência artificial
-          através de uma interface unificada. API compatível com OpenAI, dashboard
-          completo e controle total das suas credenciais.
+          direto no browser. API compatível com OpenAI, sem instalar nada.
         </p>
       </div>
 
@@ -32,17 +33,22 @@ export function HeroSection() {
         <AuthButtons size="lg" />
       </div>
 
-      <div className="mt-8 flex items-center gap-6 text-sm text-muted-foreground">
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground sm:gap-6">
         <div className="flex items-center gap-2">
-          <ActivityIcon className="size-4 text-primary" />
-          <span>Multi-provider</span>
+          <GlobeIcon className="size-4 text-primary" />
+          <span>Sem instalação</span>
         </div>
         <div className="h-4 w-px bg-border" />
-        <span>API OpenAI-compatível</span>
+        <div className="flex items-center gap-2">
+          <PlugIcon className="size-4 text-primary" />
+          <span>API OpenAI-compatível</span>
+        </div>
         <div className="h-4 w-px bg-border" />
-        <span>100% gratuito</span>
+        <div className="flex items-center gap-2">
+          <ActivityIcon className="size-4 text-primary" />
+          <span>100% gratuito</span>
+        </div>
       </div>
     </section>
   );
 }
-

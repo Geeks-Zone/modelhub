@@ -1,10 +1,11 @@
-﻿import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { homedir } from 'node:os';
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 
 const DEFAULT_PROVIDER_ID = 'modelhub';
-const DEFAULT_SERVICE_BASE_URL = 'http://localhost:3000';
+const DEFAULT_SERVICE_BASE_URL = 'https://www.modelhub.com.br';
 
 export function parseFlags(args) {
   const flags = {};
@@ -201,6 +202,15 @@ export function upsertModelHubIntoOpenClawConfig(
     primary: toOpenClawModelRef(safeProviderId, selectedModelId),
   };
 
+  next.gateway ??= {};
+  if (!next.gateway.mode) {
+    next.gateway.mode = 'local';
+  }
+
+  if (!next.gateway.auth) {
+    next.gateway.auth = next.gateway.auth || 'none';
+  }
+
   return next;
 }
 
@@ -293,6 +303,34 @@ async function loadOpenClawConfig(configPath) {
   return loadJsonFile(configPath);
 }
 
+async function ensureOpenClawInstalled() {
+  try {
+    execSync('openclaw --version', { stdio: 'pipe' });
+    return true;
+  } catch {}
+
+  console.log('OpenClaw nao encontrado. Instalando...');
+  try {
+    execSync('npm install -g openclaw@latest', { stdio: 'inherit' });
+    console.log('OpenClaw instalado com sucesso.\n');
+    return true;
+  } catch (installError) {
+    console.error('Falha ao instalar o OpenClaw automaticamente.');
+    console.error('Instale manualmente com: npm install -g openclaw@latest');
+    console.error('Depois rode o setup novamente.');
+    return false;
+  }
+}
+
+function isOpenClawInstalled() {
+  try {
+    execSync('openclaw --version', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runSetup(args) {
   const { flags } = parseFlags(args);
   const providerId = ensureProviderId(flags['provider-id'] || DEFAULT_PROVIDER_ID);
@@ -312,6 +350,15 @@ async function runSetup(args) {
     console.error('API key ausente. Use --api-key ou MODELHUB_API_KEY.');
     process.exitCode = 1;
     return;
+  }
+
+  if (!isOpenClawInstalled()) {
+    console.log('OpenClaw nao esta instalado. Instalando automaticamente...\n');
+    const installed = await ensureOpenClawInstalled();
+    if (!installed) {
+      process.exitCode = 1;
+      return;
+    }
   }
 
   const discovery = await requestJson(serviceBaseUrl, '/openclaw/discovery', { apiKey });
@@ -551,6 +598,19 @@ async function runDoctor(args) {
   }
 }
 
+async function runInstall() {
+  if (isOpenClawInstalled()) {
+    const version = execSync('openclaw --version', { encoding: 'utf-8' }).trim();
+    console.log(`OpenClaw ja esta instalado (versao ${version}).`);
+    return;
+  }
+
+  const installed = await ensureOpenClawInstalled();
+  if (!installed) {
+    process.exitCode = 1;
+  }
+}
+
 function printStandaloneHelp() {
   console.log(`ModelHub OpenClaw CLI
 
@@ -560,8 +620,10 @@ Uso:
   npx @model-hub/openclaw-cli models [--base-url URL] [--api-key KEY] [--provider-id ID]
   npx @model-hub/openclaw-cli use <model-id> [--provider-id ID]
   npx @model-hub/openclaw-cli doctor [--base-url URL] [--api-key KEY] [--model MODEL] [--provider-id ID]
+  npx @model-hub/openclaw-cli install
 
 Observacoes:
+  - O comando install verifica se o OpenClaw esta instalado e instala automaticamente se necessario
   - O OpenClaw sera configurado no arquivo ~/.openclaw/openclaw.json
   - O provider customizado usa base URL <SEU_MODELHUB>/v1
   - O model ref final no OpenClaw fica no formato modelhub/<provider/model-id>`);
@@ -606,6 +668,11 @@ async function dispatchCommand(command, args) {
 
   if (command === 'doctor') {
     await runDoctor(args);
+    return;
+  }
+
+  if (command === 'install') {
+    await runInstall();
     return;
   }
 

@@ -15,17 +15,19 @@ const SIGN_UP_HREF = "/auth/sign-up?redirectTo=%2Fchat";
  * the session check to the client.
  */
 export function AuthButtons({ size = "sm" }: { size?: "sm" | "lg" }) {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     authClient
       .getSession()
       .then((result) => setIsLoggedIn(!!result.data?.user))
-      .catch(() => setIsLoggedIn(false));
+      .catch(() => setIsLoggedIn(false))
+      .finally(() => setSessionChecked(true));
   }, []);
 
-  // Still loading: render sign-in/sign-up as default (matches SSR output)
-  if (isLoggedIn === null) {
+  // Até o primeiro efeito no cliente, mantém o mesmo markup que no SSR (evita hydration mismatch).
+  if (!sessionChecked) {
     return <AuthFallback size={size} />;
   }
 

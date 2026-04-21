@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { MonitorCogIcon, MoonStarIcon, SunMediumIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -12,13 +12,10 @@ function getLabel(next: string) {
   return "Usar tema do sistema";
 }
 
-const emptySubscribe = () => () => {};
-const getClientSnapshot = () => true;
-const getServerSnapshot = () => false;
-
 export function ModeToggle() {
   const { resolvedTheme, setTheme, theme } = useTheme();
-  const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   function getNextTheme() {
     if (theme === "system") return "light";

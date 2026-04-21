@@ -1,4 +1,4 @@
-﻿# ðŸ“¡ DocumentaÃ§Ã£o da API
+﻿﻿﻿﻿# ðŸ“¡ DocumentaÃ§Ã£o da API
 
 API compatÃ­vel com OpenAI para acesso unificado a mÃºltiplos provedores de IA.
 
@@ -42,7 +42,7 @@ Authorization: Bearer YOUR_API_KEY
 **Body:**
 ```json
 {
-  "model": "openrouter/openai/gpt-oss-20b:free",
+  "model": "quillbot/quillbot-ai",
   "messages": [
     {
       "role": "system",
@@ -197,7 +197,7 @@ Authorization: Bearer YOUR_API_KEY
   "onboarding": {
     "headless": true,
     "presets": [
-      { "preset": "coding", "model": "openrouter/openai/gpt-oss-20b:free" }
+      { "preset": "coding", "model": "quillbot/quillbot-ai" }
     ]
   }
 }
@@ -268,7 +268,7 @@ curl https://www.modelhub.com.br/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "model": "openrouter/openai/gpt-oss-20b:free",
+    "model": "quillbot/quillbot-ai",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -286,7 +286,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="openrouter/openai/gpt-oss-20b:free",
+    model="quillbot/quillbot-ai",
     messages=[
         {"role": "user", "content": "Hello!"}
     ]
@@ -306,7 +306,7 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: 'openrouter/openai/gpt-oss-20b:free',
+  model: 'quillbot/quillbot-ai',
   messages: [
     { role: 'user', content: 'Hello!' }
   ]
@@ -319,7 +319,7 @@ console.log(response.choices[0].message.content);
 
 ```typescript
 const stream = await client.chat.completions.create({
-  model: 'openrouter/openai/gpt-oss-20b:free',
+  model: 'quillbot/quillbot-ai',
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: true
 });

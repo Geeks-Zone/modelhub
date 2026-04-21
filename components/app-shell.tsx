@@ -51,8 +51,14 @@ function LoadingShell() {
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
-        <div className="flex h-svh items-center justify-center">
-          <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+        <div
+          className="flex h-svh flex-col items-center justify-center gap-2"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <Loader2Icon className="size-5 animate-spin text-muted-foreground" aria-hidden />
+          <span className="sr-only">A carregar a sessão…</span>
         </div>
       </SidebarInset>
     </SidebarProvider>
@@ -178,18 +184,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarInset className="overflow-hidden">
         <header className="shrink-0 border-b border-border/60 bg-background/90 backdrop-blur">
           <div className="flex items-center justify-between gap-3 px-4 py-2.5 md:px-6">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <SidebarTrigger />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">
-                  {pathname === "/setup" ? "Providers" : pathname === "/dashboard" ? "Dashboard" : "Chat"}
+              <div className="min-w-0 flex flex-col">
+                <span className="truncate text-sm font-medium">
+                  {pathname.startsWith("/setup")
+                    ? "Providers"
+                    : pathname.startsWith("/dashboard")
+                      ? "Dashboard"
+                      : pathname.startsWith("/account")
+                        ? "Conta"
+                        : pathname.startsWith("/chat")
+                          ? "Chat"
+                          : "ModelHub"}
                 </span>
-                <span className="hidden text-xs text-muted-foreground sm:block">
-                  {pathname === "/setup"
+                <span className="hidden truncate text-xs text-muted-foreground sm:block">
+                  {pathname.startsWith("/setup")
                     ? "Configure as chaves dos providers de IA"
-                    : pathname === "/dashboard"
+                    : pathname.startsWith("/dashboard")
                       ? "Conta, uso, API keys e credenciais"
-                      : "Converse com os providers configurados"}
+                      : pathname.startsWith("/account")
+                        ? "Definições e segurança da conta"
+                        : pathname.startsWith("/chat")
+                          ? "Converse com os providers configurados"
+                          : ""}
                 </span>
               </div>
             </div>
@@ -198,7 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

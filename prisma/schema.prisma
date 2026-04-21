@@ -58,14 +58,16 @@ model ProviderCredential {
 }
 
 model UsageLog {
-  id         String   @id @default(cuid())
-  userId     String
-  apiKeyId   String?
-  providerId String
-  modelId    String?
-  endpoint   String?
-  statusCode Int      @default(200)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  apiKeyId    String?
+  providerId  String
+  modelId     String?
+  endpoint    String?
+  statusCode  Int      @default(200)
+  /// Trecho da resposta de erro (JSON/texto) para diagnóstico no dashboard; ausente em sucessos e em logs antigos.
+  errorDetail String?
+  createdAt   DateTime @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   apiKey ApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)

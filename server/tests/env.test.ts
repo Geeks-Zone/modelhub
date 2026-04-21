@@ -7,7 +7,7 @@ const VALID_ENV = {
   DATABASE_URL: "postgresql://neondb_owner:password@ep-example-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require",
   ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   NEON_AUTH_BASE_URL: "https://auth.example.com",
-  NEON_AUTH_COOKIE_SECRET: "super-secret-cookie-value",
+  NEON_AUTH_COOKIE_SECRET: "test-secret-32-characters-long!!",
   NODE_ENV: "production",
   REQUIRE_AUTH: "true",
   VERCEL_ENV: "preview",
@@ -16,6 +16,17 @@ const VALID_ENV = {
 describe("runtime env validation", () => {
   it("validates a complete preview configuration", () => {
     expect(validateRuntimeEnvConfig(VALID_ENV)).toEqual([]);
+  });
+
+  it("fails when NEON_AUTH_COOKIE_SECRET is shorter than 32 characters", () => {
+    expect(
+      validateRuntimeEnvConfig({
+        ...VALID_ENV,
+        NEON_AUTH_COOKIE_SECRET: "short",
+      }),
+    ).toEqual(
+      expect.arrayContaining(["NEON_AUTH_COOKIE_SECRET must be at least 32 characters (Neon Auth requirement)."]),
+    );
   });
 
   it("fails when central envs are missing", () => {
@@ -43,8 +54,8 @@ describe("runtime env validation", () => {
     );
   });
 
-  it("only validates strictly on vercel preview or production", () => {
-    expect(shouldValidateRuntimeEnv({ NODE_ENV: "development" } as NodeJS.ProcessEnv)).toBe(false);
+  it("validates in development and on Vercel preview/production", () => {
+    expect(shouldValidateRuntimeEnv({ NODE_ENV: "development" } as NodeJS.ProcessEnv)).toBe(true);
     expect(shouldValidateRuntimeEnv({ NODE_ENV: "production", VERCEL_ENV: "preview" } as NodeJS.ProcessEnv)).toBe(true);
     expect(shouldValidateRuntimeEnv({ NODE_ENV: "production", VERCEL_ENV: "production" } as NodeJS.ProcessEnv)).toBe(true);
   });

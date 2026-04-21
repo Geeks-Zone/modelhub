@@ -1,4 +1,4 @@
-﻿# âš¡ Guia de InÃ­cio RÃ¡pido
+# âš¡ Guia de InÃ­cio RÃ¡pido
 
 Comece a usar o ModelHub em menos de 5 minutos!
 
@@ -188,13 +188,17 @@ No OpenClaw, configure:
 # Bootstrap guiado (discovery + catalogo + escrita no ~/.openclaw/openclaw.json)
 npx @model-hub/openclaw-cli setup \
   --base-url https://www.modelhub.com.br \
-  --api-key SUA_API_KEY
+  --api-key SUA_API_KEY \
+  --model quillbot/quillbot-ai
 
 # Trocar o modelo primario depois
-npx @model-hub/openclaw-cli use openrouter/openai/gpt-oss-20b:free
+npx @model-hub/openclaw-cli use quillbot/quillbot-ai
 
 # Diagnostico completo de integracao
-npx @model-hub/openclaw-cli doctor
+npx @model-hub/openclaw-cli doctor \
+  --base-url https://www.modelhub.com.br \
+  --api-key SUA_API_KEY \
+  --model quillbot/quillbot-ai
 ```
 
 O CLI cria um provider `modelhub` no OpenClaw com:
@@ -207,7 +211,7 @@ O CLI cria um provider `modelhub` no OpenClaw com:
 
 ```bash
 modelhub openclaw setup --base-url https://www.modelhub.com.br --api-key SUA_API_KEY
-modelhub openclaw use openrouter/openai/gpt-oss-20b:free
+modelhub openclaw use quillbot/quillbot-ai
 modelhub doctor
 ```
 

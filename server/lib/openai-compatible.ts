@@ -1,4 +1,11 @@
 import {
+  MODELHUB_EFFECTIVE_MODEL_HEADER,
+  MODELHUB_FALLBACK_DIAGNOSTIC_HEADER,
+  MODELHUB_MODEL_FALLBACK_USED_HEADER,
+  MODELHUB_MODELS_ATTEMPTED_HEADER,
+  MODELHUB_REQUESTED_MODEL_HEADER,
+} from '@/lib/contracts'
+import {
   fetchWithTimeout,
   internalProviderErrorResponse,
   postJsonWithTimeout,
@@ -35,6 +42,11 @@ type OpenAiCompatibleConfig = {
   extraHeaders?: Record<string, string>
   bodyTransform?: (input: { messages: ChatMessage[]; modelId: string; rawBody: Record<string, unknown> }) => Record<string, unknown>
   timeoutMs?: number
+  /**
+   * When upstream returns 404 for an unknown / inaccessible model, retry with these IDs in order
+   * (after the user-selected model). Skips duplicates. Used e.g. when catalog ≠ entitlement (Cerebras).
+   */
+  fallbackModelIds?: string[]
 }
 
 /**
@@ -65,6 +77,7 @@ const PASSTHROUGH_FIELDS = [
   'logprobs',
   'top_logprobs',
   'user',
+  'reasoning_effort',
 ] as const
 
 /** Convert ChatMessage[] to OpenAI-compatible message format. */
@@ -119,6 +132,8 @@ function buildDefaultBody(
   return body
 }
 
+export { buildDefaultBody as buildOpenAiCompatibleChatBody }
+
 type OpenAiToolCall = {
   id: string
   type: 'function'
@@ -136,6 +151,115 @@ type OpenAiNonStreamingResponse = {
   response?: string
 } | null
 
+function isUpstreamModelNotFound(status: number, errorText: string): boolean {
+  if (status !== 404) {
+    return false
+  }
+  return (
+    errorText.includes('model_not_found') ||
+    errorText.includes('"code":"model_not_found"') ||
+    errorText.includes('does not exist or you do not have access')
+  )
+}
+
+async function responseFromSuccessfulUpstream(
+  response: Response,
+): Promise<Response> {
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('text/event-stream')) {
+    return toVercelStreamFromOpenAiSse(response)
+  }
+
+  const json = (await response.json().catch(() => null)) as OpenAiNonStreamingResponse
+  const message = json?.choices?.[0]?.message
+
+  if (message?.tool_calls && message.tool_calls.length > 0) {
+    return toVercelToolCallsResponse(message.tool_calls, message.content || undefined)
+  }
+
+  const directText = message?.content || json?.output_text || json?.response || ''
+  return toVercelSingleTextResponse(String(directText))
+}
+
+function encodeFallbackDiagnosticHeader(input: {
+  requestedModelId: string
+  effectiveModelId: string
+  failures: Array<{ modelId: string; status: number; snippet: string }>
+}): string {
+  let failedAttempts = input.failures.map((f) => ({
+    modelId: f.modelId,
+    status: f.status,
+    upstreamSnippet: f.snippet.slice(0, 600),
+  }))
+  let payload: {
+    type: 'model_fallback'
+    note: string
+    requestedModelId: string
+    effectiveModelId: string
+    failedAttempts: typeof failedAttempts
+  } = {
+    type: 'model_fallback',
+    note: 'Resposta HTTP 200 após falha(s) em modelo(s) anterior(es); veja failedAttempts.',
+    requestedModelId: input.requestedModelId,
+    effectiveModelId: input.effectiveModelId,
+    failedAttempts,
+  }
+  let json = JSON.stringify(payload)
+  if (json.length > 4500) {
+    failedAttempts = failedAttempts.map((f) => ({
+      ...f,
+      upstreamSnippet: f.upstreamSnippet.slice(0, 200),
+    }))
+    payload = { ...payload, failedAttempts }
+    json = JSON.stringify(payload)
+  }
+  while (json.length > 5200 && failedAttempts.some((f) => f.upstreamSnippet.length > 80)) {
+    failedAttempts = failedAttempts.map((f) => ({
+      ...f,
+      upstreamSnippet: f.upstreamSnippet.slice(0, Math.max(80, Math.floor(f.upstreamSnippet.length * 0.5))),
+    }))
+    payload = { ...payload, failedAttempts }
+    json = JSON.stringify(payload)
+  }
+  return Buffer.from(json, 'utf8').toString('base64url')
+}
+
+async function attachModelResolutionHeaders(
+  responsePromise: Promise<Response>,
+  meta: {
+    requestedModelId: string
+    effectiveModelId: string
+    attemptedModelIds: string[]
+    fallbackDiagnostics?: Array<{ modelId: string; status: number; snippet: string }>
+    fallbackUsed: boolean
+  },
+): Promise<Response> {
+  const out = await responsePromise
+  const headers = new Headers(out.headers)
+  headers.set(MODELHUB_EFFECTIVE_MODEL_HEADER, meta.effectiveModelId)
+  headers.set(MODELHUB_REQUESTED_MODEL_HEADER, meta.requestedModelId)
+  headers.set(MODELHUB_MODELS_ATTEMPTED_HEADER, meta.attemptedModelIds.join(','))
+  if (meta.fallbackUsed) {
+    headers.set(MODELHUB_MODEL_FALLBACK_USED_HEADER, 'true')
+    const failures = meta.fallbackDiagnostics ?? []
+    if (failures.length > 0) {
+      headers.set(
+        MODELHUB_FALLBACK_DIAGNOSTIC_HEADER,
+        encodeFallbackDiagnosticHeader({
+          requestedModelId: meta.requestedModelId,
+          effectiveModelId: meta.effectiveModelId,
+          failures,
+        }),
+      )
+    }
+  }
+  return new Response(out.body, {
+    status: out.status,
+    statusText: out.statusText,
+    headers,
+  })
+}
+
 export async function chatViaOpenAiCompatible(
   config: OpenAiCompatibleConfig,
   input: { messages: ChatMessage[]; modelId: string; rawBody: Record<string, unknown> },
@@ -144,49 +268,86 @@ export async function chatViaOpenAiCompatible(
   try {
     const apiKey = resolveEnv(config.apiKeyEnv, credentials)
 
-    const body = config.bodyTransform
-      ? config.bodyTransform(input)
-      : buildDefaultBody(input)
+    const extraFallback =
+      config.fallbackModelIds?.filter((id) => id !== input.modelId) ?? []
+    const modelChain = [input.modelId, ...extraFallback]
+    const attempted: string[] = []
+    const fallbackFailures: Array<{ modelId: string; status: number; snippet: string }> = []
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${apiKey}`,
-    }
+    for (let idx = 0; idx < modelChain.length; idx++) {
+      const modelId = modelChain[idx]!
+      attempted.push(modelId)
 
-    if (config.extraHeaders) {
-      Object.assign(headers, config.extraHeaders)
-    }
+      const attemptInput = { ...input, modelId }
 
-    const response = await postJsonWithTimeout(config.chatUrl, {
-      headers,
-      body,
-      timeoutMs: config.timeoutMs ?? 60000,
-    })
+      const body = config.bodyTransform
+        ? config.bodyTransform(attemptInput)
+        : buildDefaultBody(attemptInput)
 
-    if (!response.ok) {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${apiKey}`,
+      }
+
+      if (config.extraHeaders) {
+        Object.assign(headers, config.extraHeaders)
+      }
+
+      const response = await postJsonWithTimeout(config.chatUrl, {
+        headers,
+        body,
+        timeoutMs: config.timeoutMs ?? 60000,
+      })
+
+      if (response.ok) {
+        if (idx > 0) {
+          console.warn(
+            `[${config.providerName}] fallback succeeded using ${modelId} after model_not_found (requested ${input.modelId}); attempted: ${attempted.join(' → ')}`,
+          )
+        }
+        return attachModelResolutionHeaders(responseFromSuccessfulUpstream(response), {
+          requestedModelId: input.modelId,
+          effectiveModelId: modelId,
+          attemptedModelIds: [...attempted],
+          fallbackDiagnostics: fallbackFailures,
+          fallbackUsed: idx > 0,
+        })
+      }
+
       const errorText = await response.text()
+
+      if (isUpstreamModelNotFound(response.status, errorText) && idx < modelChain.length - 1) {
+        fallbackFailures.push({
+          modelId,
+          status: response.status,
+          snippet: errorText.slice(0, 2000),
+        })
+        console.warn(
+          `[${config.providerName}] model_not_found for ${modelId}, retrying with ${modelChain[idx + 1]}`,
+        )
+        continue
+      }
+
       const guidance = getUpstreamErrorGuidance(config.providerName, response.status, errorText)
       if (guidance) {
         console.error(`[${config.providerName}] upstream error ${response.status}: ${errorText.slice(0, 500)}`)
         return toVercelSingleTextResponse(guidance)
       }
-      return upstreamErrorResponse(config.providerName, response.status, errorText)
+      return upstreamErrorResponse(config.providerName, response.status, errorText, {
+        requestedModel: input.modelId,
+        attemptedModels: attempted,
+        ...(attempted.length > 1
+          ? {
+              hint:
+                'Vários modelos foram tentados em sequência; nenhum completou após o último erro. Veja "upstream" para a mensagem da API.',
+            }
+          : {}),
+      })
     }
 
-    const contentType = response.headers.get('content-type') || ''
-    if (contentType.includes('text/event-stream')) {
-      return toVercelStreamFromOpenAiSse(response)
-    }
-
-    const json = (await response.json().catch(() => null)) as OpenAiNonStreamingResponse
-    const message = json?.choices?.[0]?.message
-
-    // Handle tool_calls in non-streaming response
-    if (message?.tool_calls && message.tool_calls.length > 0) {
-      return toVercelToolCallsResponse(message.tool_calls, message.content || undefined)
-    }
-
-    const directText = message?.content || json?.output_text || json?.response || ''
-    return toVercelSingleTextResponse(String(directText))
+    return internalProviderErrorResponse(
+      config.providerName,
+      new Error('chatViaOpenAiCompatible: no model attempts (unexpected)'),
+    )
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('CONFIG_ERROR:')) {
       throw error
@@ -292,6 +453,23 @@ function getUpstreamErrorGuidance(
   status: number,
   errorText: string,
 ): string | null {
+  if (providerName === 'Cerebras') {
+    if (
+      status === 404 &&
+      (errorText.includes('model_not_found') ||
+        errorText.includes('does not exist or you do not have access'))
+    ) {
+      return [
+        '**Modelo indisponível na Cerebras para esta chave**\n',
+        'A listagem de modelos (`GET /v1/models`) pode incluir IDs que **não estão habilitados** para `POST /v1/chat/completions` na sua conta — a documentação trata descoberta de modelos e uso no chat como fluxos distintos.\n',
+        '**O que fazer:**',
+        '- Use **llama3.1-8b** ou **qwen-3-235b-a22b-instruct-2507** se o app ainda não tiver feito fallback automático',
+        '- Confira permissões e tier em [cloud.cerebras.ai](https://cloud.cerebras.ai/)',
+        '- Se o erro persistir com o mesmo `model` que aparece na lista, envie ao suporte Cerebras um `curl` mínimo (sem expor a chave) mostrando 404 no chat e sucesso em outro modelo com o mesmo token',
+      ].join('\n')
+    }
+  }
+
   // --- OpenRouter specific ---
   if (providerName === 'OpenRouter') {
     // Guardrail restrictions

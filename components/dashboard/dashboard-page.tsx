@@ -10,21 +10,28 @@ import type {
 import {
   ActivityIcon,
   AlertTriangleIcon,
+  BotIcon,
   BarChart3Icon,
+  CheckCircle2Icon,
   CheckIcon,
   CopyIcon,
   ExternalLinkIcon,
+  FileTextIcon,
   KeyRoundIcon,
   Loader2Icon,
   PlusIcon,
+  TerminalSquareIcon,
   ShieldCheckIcon,
   Trash2Icon,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis } from "recharts";
 import { toast } from "sonner";
 
+import { ApiQuickStartCard } from "@/components/dashboard/api-quick-start-card";
+import { OpenClawWizard } from "@/components/dashboard/openclaw-wizard";
 import { useAppState } from "@/components/app-state-provider";
 import { Badge } from "@/components/ui/badge";
+import { DEFAULT_MODEL_ID } from "@/lib/defaults";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -32,6 +39,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
@@ -60,6 +68,18 @@ function providerLabel(providerId: string, providers: UiProvider[]) {
   return providers.find((provider) => provider.id === providerId)?.label ?? providerId;
 }
 
+function formatLogErrorBody(raw: string | null): string {
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return raw;
+  }
+}
+
 export function DashboardPage() {
   const { credentials, providers, refreshCredentials, refreshUser, user } = useAppState();
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
@@ -70,15 +90,30 @@ export function DashboardPage() {
   const [newKeyLabel, setNewKeyLabel] = useState("");
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedCommandId, setCopiedCommandId] = useState<string | null>(null);
   const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
   const [savingCredentials, setSavingCredentials] = useState(false);
+  const [usageLogDetail, setUsageLogDetail] = useState<RecentUsageLog | null>(null);
 
   const selectedProvider = useMemo(
     () => providers.find((provider) => provider.id === selectedProviderId) ?? null,
     [providers, selectedProviderId],
   );
+  const hasAnyApiKey = apiKeys.length > 0 || Boolean(newApiKey);
+
+  function handleCopyCommand(commandId: string, command: string, successMessage: string) {
+    void navigator.clipboard.writeText(command).then(() => {
+      setCopiedCommandId(commandId);
+      toast.success(successMessage);
+      setTimeout(() => {
+        setCopiedCommandId((current) => (current === commandId ? null : current));
+      }, 2000);
+    }).catch(() => {
+      toast.error("Falha ao copiar comando.");
+    });
+  }
 
   async function loadDashboard() {
     setLoading(true);
@@ -193,8 +228,14 @@ export function DashboardPage() {
 
   if (loading && !usage) {
     return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
+      <div
+        className="flex flex-1 flex-col items-center justify-center gap-2 p-6"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground" aria-hidden />
+        <span className="sr-only">A carregar o dashboard…</span>
       </div>
     );
   }
@@ -205,18 +246,21 @@ export function DashboardPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-3 md:gap-6 md:p-6">
       <Dialog open={!!newApiKey} onOpenChange={(open) => { if (!open) setNewApiKey(null); }}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="max-h-[min(90vh,40rem)] w-[calc(100vw-2rem)] max-w-2xl gap-4 overflow-y-auto overflow-x-hidden sm:max-w-2xl">
+          <DialogHeader className="shrink-0 text-left">
             <DialogTitle>API key criada com sucesso</DialogTitle>
             <DialogDescription>
               Copie a key abaixo. Ela não poderá ser exibida novamente.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-2 overflow-hidden">
-            <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-muted px-3 py-2 text-sm break-all select-all">{newApiKey}</code>
+          <div className="min-w-0 space-y-2">
+            <code className="block max-h-32 min-h-0 w-full min-w-0 overflow-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap select-all sm:text-sm">
+              {newApiKey}
+            </code>
             <Button
               variant="outline"
-              size="icon"
+              size="sm"
+              className="w-full shrink-0 sm:w-auto"
               onClick={() => {
                 if (newApiKey) {
                   void navigator.clipboard.writeText(newApiKey);
@@ -226,9 +270,82 @@ export function DashboardPage() {
                 }
               }}
             >
-              {copiedKey ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
+              {copiedKey ? <CheckIcon className="mr-2 size-4" /> : <CopyIcon className="mr-2 size-4" />}
+              Copiar API key
             </Button>
           </div>
+          {newApiKey ? (
+            <div className="min-w-0 space-y-4">
+              <div className="min-w-0 space-y-3 rounded-xl border border-chart-2/20 bg-chart-2/5 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-2/10">
+                    <TerminalSquareIcon className="size-4 text-chart-2" />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-medium">Usar pela API</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Copie o exemplo abaixo para fazer sua primeira requisição.
+                    </p>
+                  </div>
+                </div>
+                <pre className="max-h-48 min-w-0 overflow-auto rounded-lg bg-muted px-3 py-2.5 text-xs leading-relaxed">
+                  <code className="block min-w-0 break-all whitespace-pre-wrap">{`curl -X POST https://www.modelhub.com.br/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${newApiKey}" \\
+  -d '{"model": "${DEFAULT_MODEL_ID}", "messages": [{"role": "user", "content": "Olá!"}]}'`}</code>
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const cmd = `curl -X POST https://www.modelhub.com.br/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer ${newApiKey}" -d '{"model": "${DEFAULT_MODEL_ID}", "messages": [{"role": "user", "content": "Olá!"}]}'`;
+                    void navigator.clipboard.writeText(cmd).then(() => {
+                      handleCopyCommand("dialog-curl", cmd, "Comando cURL copiado!");
+                    });
+                  }}
+                >
+                  {copiedCommandId === "dialog-curl" ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                  Copiar cURL
+                </Button>
+              </div>
+
+              <div className="min-w-0 space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <BotIcon className="size-4 text-primary" />
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-medium">Integrar com OpenClaw (opcional)</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Se quiser usar o ModelHub no terminal com o OpenClaw, copie os comandos abaixo.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      handleCopyCommand("dialog-setup", `npx @model-hub/openclaw-cli setup --base-url https://www.modelhub.com.br --api-key ${newApiKey ?? "SUA_API_KEY"} --model ${DEFAULT_MODEL_ID}`, "Comando de setup copiado!")
+                    }
+                  >
+                    {copiedCommandId === "dialog-setup" ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                    Copiar setup
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      handleCopyCommand("dialog-doctor", `npx @model-hub/openclaw-cli doctor --base-url https://www.modelhub.com.br --api-key ${newApiKey ?? "SUA_API_KEY"} --model ${DEFAULT_MODEL_ID}`, "Comando de validação copiado!")
+                    }
+                  >
+                    {copiedCommandId === "dialog-doctor" ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                    Copiar doctor
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -329,6 +446,71 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="flex size-9 items-center justify-center rounded-full bg-primary/10">
+                  <TerminalSquareIcon className="size-4 text-primary" />
+                </div>
+                <CardTitle>Quick Start</CardTitle>
+              </div>
+              <CardDescription className="max-w-2xl leading-relaxed">
+                Gere uma API key e use o ModelHub de imediato — pelo browser ou pela API. Se quiser
+                usar no terminal, integre com o OpenClaw com um comando.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+                <CheckCircle2Icon className="size-3" />
+                API OpenAI-compatible
+              </Badge>
+              <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+                <BotIcon className="size-3" />
+                Integração com OpenClaw
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <ApiQuickStartCard apiKey={newApiKey} hasApiKey={hasAnyApiKey} />
+
+          <div className="border-t border-border/40 pt-5">
+            <OpenClawWizard
+              apiKey={newApiKey}
+              hasApiKey={hasAnyApiKey}
+              onCreateKey={() => setNewKeyDialogOpen(true)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/70 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Precisa de uma API key?</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Gere uma chave para acessar a API ou configurar o OpenClaw.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setNewKeyDialogOpen(true)}>
+                <KeyRoundIcon data-icon="inline-start" />
+                Nova key
+              </Button>
+              <Button asChild variant="outline">
+                <a
+                  href="https://www.npmjs.com/package/openclaw"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLinkIcon data-icon="inline-start" />
+                  Instalar OpenClaw
+                </a>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="overview" className="flex flex-1 flex-col gap-4">
         <TabsList className="grid w-full grid-cols-4 text-xs sm:text-sm">
@@ -511,6 +693,7 @@ export function DashboardPage() {
                       <TableHead className="hidden sm:table-cell">Modelo</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="hidden md:table-cell">Key</TableHead>
+                      <TableHead className="w-12 text-right">Detalhes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -525,6 +708,26 @@ export function DashboardPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">{log.apiKey ? `${log.apiKey.prefix}...` : "—"}</TableCell>
+                        <TableCell className="text-right">
+                          {log.statusCode >= 400 || (log.errorDetail && log.errorDetail.length > 0) ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-muted-foreground hover:text-foreground"
+                              onClick={() => setUsageLogDetail(log)}
+                              aria-label={
+                                log.statusCode >= 400
+                                  ? "Ver detalhes do erro"
+                                  : "Ver detalhes (ex.: falha antes de fallback)"
+                              }
+                            >
+                              <FileTextIcon className="size-4" />
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -535,6 +738,64 @@ export function DashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!usageLogDetail} onOpenChange={(open) => { if (!open) setUsageLogDetail(null); }}>
+        <DialogContent className="max-h-[min(90vh,40rem)] w-[calc(100vw-2rem)] max-w-2xl gap-4 overflow-hidden sm:max-w-2xl">
+          <DialogHeader className="shrink-0 text-left">
+            <DialogTitle>
+              {usageLogDetail && usageLogDetail.statusCode < 400 && usageLogDetail.errorDetail
+                ? "Detalhes da requisição"
+                : "Detalhes do erro"}
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-1.5 text-sm text-muted-foreground">
+                {usageLogDetail ? (
+                  <>
+                    <p>
+                      <span className="font-medium text-foreground">Status:</span> {usageLogDetail.statusCode}
+                      {" · "}
+                      <span className="font-medium text-foreground">Provider:</span>{" "}
+                      {providerLabel(usageLogDetail.providerId ?? "—", providers)}
+                      {" · "}
+                      <span className="font-medium text-foreground">Modelo:</span> {usageLogDetail.modelId ?? "—"}
+                    </p>
+                    {usageLogDetail.endpoint ? (
+                      <p className="font-mono text-xs break-all">{usageLogDetail.endpoint}</p>
+                    ) : null}
+                    <p className="text-xs">{formatDate(usageLogDetail.createdAt)}</p>
+                  </>
+                ) : null}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[min(55vh,24rem)] rounded-lg border border-border/80">
+            <pre className="max-w-full p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap select-text">
+              {usageLogDetail?.errorDetail
+                ? formatLogErrorBody(usageLogDetail.errorDetail)
+                : "Nenhum corpo de erro foi armazenado para este log (registros antigos ou resposta não legível)."}
+            </pre>
+          </ScrollArea>
+          {usageLogDetail?.errorDetail ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                const text = formatLogErrorBody(usageLogDetail.errorDetail);
+                void navigator.clipboard.writeText(text).then(() => {
+                  toast.success("Detalhes copiados.");
+                }).catch(() => {
+                  toast.error("Falha ao copiar.");
+                });
+              }}
+            >
+              <CopyIcon className="mr-2 size-4" />
+              Copiar detalhes
+            </Button>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={newKeyDialogOpen} onOpenChange={setNewKeyDialogOpen}>
         <DialogContent>

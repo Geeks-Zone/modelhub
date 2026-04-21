@@ -6,10 +6,16 @@ type ProxyTarget = {
 }
 
 export const PROVIDER_CATALOG: readonly UiProvider[] = [
-  { id: 'gateway', label: 'Gateway (Chat)', base: '/gateway', hasModels: true },
+  {
+    id: 'gateway',
+    label: 'Gateway (Chat)',
+    base: '/gateway',
+    hasModels: true,
+    signupUrl: 'https://vercel.com/docs/ai-gateway',
+    signupLabel: 'Chave Vercel AI Gateway (recomendada: o demo público labs pode falhar)',
+  },
   { id: 'embeddings', label: 'Embeddings (RAG)', base: '/embeddings', hasModels: false },
   { id: 'duckai', label: 'Duck.ai', base: '/duckai', hasModels: true },
-  { id: 'metaai', label: 'Meta AI', base: '/metaai', hasModels: true },
   { id: 'quillbot', label: 'Quillbot AI', base: '/quillbot', hasModels: true },
   {
     id: 'openrouter',
@@ -59,7 +65,7 @@ export const PROVIDER_CATALOG: readonly UiProvider[] = [
     requiredEnv: 'CODESTRAL_API_KEY',
     requiredKeys: [{ envName: 'CODESTRAL_API_KEY', label: 'API Key', placeholder: 'sk-...' }],
     signupUrl: 'https://console.mistral.ai/api-keys',
-    signupLabel: 'Obter chave na Mistral',
+    signupLabel: 'Obter chave Codestral (console Mistral)',
   },
   {
     id: 'huggingface',

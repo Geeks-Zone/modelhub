@@ -1,4 +1,4 @@
-import "./server/env";
+import "./server/load-env-files";
 
 import { defineConfig } from "prisma/config";
 
