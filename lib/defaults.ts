@@ -1,0 +1,1 @@
+export const DEFAULT_MODEL_ID = "quillbot/quillbot-ai";

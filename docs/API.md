@@ -1,10 +1,10 @@
-# 📡 Documentação da API
+﻿﻿﻿﻿# ðŸ“¡ DocumentaÃ§Ã£o da API
 
-API compatível com OpenAI para acesso unificado a múltiplos provedores de IA.
+API compatÃ­vel com OpenAI para acesso unificado a mÃºltiplos provedores de IA.
 
-## 🔑 Autenticação
+## ðŸ”‘ AutenticaÃ§Ã£o
 
-Todas as requisições requerem autenticação via Bearer token:
+Todas as requisiÃ§Ãµes requerem autenticaÃ§Ã£o via Bearer token:
 
 ```bash
 Authorization: Bearer YOUR_API_KEY
@@ -12,20 +12,20 @@ Authorization: Bearer YOUR_API_KEY
 
 ### Obter API Key
 
-1. Faça login em https://your-modelhub.com
-2. Vá para Settings → API Keys
+1. FaÃ§a login em https://www.modelhub.com.br
+2. VÃ¡ para Settings â†’ API Keys
 3. Clique em "Create New Key"
-4. Copie e guarde sua chave (não será mostrada novamente)
+4. Copie e guarde sua chave (nÃ£o serÃ¡ mostrada novamente)
 
-## 📋 Base URL
+## ðŸ“‹ Base URL
 
 ```
-https://your-modelhub.com/v1
+https://www.modelhub.com.br/v1
 ```
 
-> Para endpoints de discovery/onboarding OpenClaw, use `https://your-modelhub.com/openclaw/*`.
+> Para endpoints de discovery/onboarding OpenClaw, use `https://www.modelhub.com.br/openclaw/*`.
 
-## 🚀 Endpoints
+## ðŸš€ Endpoints
 
 ### Chat Completions
 
@@ -42,7 +42,7 @@ Authorization: Bearer YOUR_API_KEY
 **Body:**
 ```json
 {
-  "model": "openrouter/openai/gpt-oss-20b:free",
+  "model": "quillbot/quillbot-ai",
   "messages": [
     {
       "role": "system",
@@ -59,20 +59,20 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
-**Parâmetros:**
+**ParÃ¢metros:**
 
-| Campo | Tipo | Obrigatório | Descrição |
+| Campo | Tipo | ObrigatÃ³rio | DescriÃ§Ã£o |
 |-------|------|-------------|-----------|
 | `model` | string | Sim | ID no formato `provider/model-id` (ex: `groq/llama-3.3-70b-versatile`) |
 | `messages` | array | Sim | Array de mensagens |
-| `temperature` | number | Não | 0-2, padrão 1 |
-| `max_tokens` | number | Não | Máximo de tokens na resposta |
-| `stream` | boolean | Não | Se true, retorna stream SSE |
-| `top_p` | number | Não | 0-1, padrão 1 |
-| `frequency_penalty` | number | Não | -2 a 2, padrão 0 |
-| `presence_penalty` | number | Não | -2 a 2, padrão 0 |
+| `temperature` | number | NÃ£o | 0-2, padrÃ£o 1 |
+| `max_tokens` | number | NÃ£o | MÃ¡ximo de tokens na resposta |
+| `stream` | boolean | NÃ£o | Se true, retorna stream SSE |
+| `top_p` | number | NÃ£o | 0-1, padrÃ£o 1 |
+| `frequency_penalty` | number | NÃ£o | -2 a 2, padrÃ£o 0 |
+| `presence_penalty` | number | NÃ£o | -2 a 2, padrÃ£o 0 |
 
-**Resposta (não-stream):**
+**Resposta (nÃ£o-stream):**
 ```json
 {
   "id": "chatcmpl-123",
@@ -110,7 +110,7 @@ data: [DONE]
 
 ### Listar Modelos
 
-Lista todos os modelos disponíveis.
+Lista todos os modelos disponÃ­veis.
 
 **Endpoint:** `GET /v1/models`
 
@@ -144,7 +144,7 @@ Authorization: Bearer YOUR_API_KEY
 
 ### Obter Modelo
 
-Obtém informações sobre um modelo específico.
+ObtÃ©m informaÃ§Ãµes sobre um modelo especÃ­fico.
 
 **Endpoint:** `GET /v1/models/{model_id}`
 
@@ -185,11 +185,11 @@ Authorization: Bearer YOUR_API_KEY
 {
   "provider": { "id": "modelhub", "name": "ModelHub" },
   "api": {
-    "chatCompletions": "https://your-modelhub.com/v1/chat/completions",
-    "models": "https://your-modelhub.com/v1/models",
-    "catalog": "https://your-modelhub.com/openclaw/catalog",
-    "health": "https://your-modelhub.com/openclaw/health",
-    "status": "https://your-modelhub.com/openclaw/status"
+    "chatCompletions": "https://www.modelhub.com.br/v1/chat/completions",
+    "models": "https://www.modelhub.com.br/v1/models",
+    "catalog": "https://www.modelhub.com.br/openclaw/catalog",
+    "health": "https://www.modelhub.com.br/openclaw/health",
+    "status": "https://www.modelhub.com.br/openclaw/status"
   },
   "auth": {
     "methods": ["api_key", "session_cookie"]
@@ -197,7 +197,7 @@ Authorization: Bearer YOUR_API_KEY
   "onboarding": {
     "headless": true,
     "presets": [
-      { "preset": "coding", "model": "openrouter/openai/gpt-oss-20b:free" }
+      { "preset": "coding", "model": "quillbot/quillbot-ai" }
     ]
   }
 }
@@ -205,23 +205,23 @@ Authorization: Bearer YOUR_API_KEY
 
 ### OpenClaw Catalog
 
-Catálogo dinâmico de modelos por tenant/workspace com metadados operacionais.
+CatÃ¡logo dinÃ¢mico de modelos por tenant/workspace com metadados operacionais.
 
 **Endpoint:** `GET /openclaw/catalog`
 
 ### OpenClaw Status
 
-Status de autenticação e permissões de uso.
+Status de autenticaÃ§Ã£o e permissÃµes de uso.
 
 **Endpoint:** `GET /openclaw/status`
 
 ### OpenClaw Health
 
-Health probe para diagnóstico de integração OpenClaw.
+Health probe para diagnÃ³stico de integraÃ§Ã£o OpenClaw.
 
 **Endpoint:** `GET /openclaw/health`
 
-## 🔌 Provedores Suportados
+## ðŸ”Œ Provedores Suportados
 
 ### OpenAI
 
@@ -259,16 +259,16 @@ Health probe para diagnóstico de integração OpenClaw.
 
 **Formato do modelo:** `llama-3.3-70b-versatile`
 
-## 💡 Exemplos
+## ðŸ’¡ Exemplos
 
 ### cURL
 
 ```bash
-curl https://your-modelhub.com/v1/chat/completions \
+curl https://www.modelhub.com.br/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "model": "openrouter/openai/gpt-oss-20b:free",
+    "model": "quillbot/quillbot-ai",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -282,11 +282,11 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="YOUR_API_KEY",
-    base_url="https://your-modelhub.com/v1"
+    base_url="https://www.modelhub.com.br/v1"
 )
 
 response = client.chat.completions.create(
-    model="openrouter/openai/gpt-oss-20b:free",
+    model="quillbot/quillbot-ai",
     messages=[
         {"role": "user", "content": "Hello!"}
     ]
@@ -302,11 +302,11 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   apiKey: 'YOUR_API_KEY',
-  baseURL: 'https://your-modelhub.com/v1'
+  baseURL: 'https://www.modelhub.com.br/v1'
 });
 
 const response = await client.chat.completions.create({
-  model: 'openrouter/openai/gpt-oss-20b:free',
+  model: 'quillbot/quillbot-ai',
   messages: [
     { role: 'user', content: 'Hello!' }
   ]
@@ -319,7 +319,7 @@ console.log(response.choices[0].message.content);
 
 ```typescript
 const stream = await client.chat.completions.create({
-  model: 'openrouter/openai/gpt-oss-20b:free',
+  model: 'quillbot/quillbot-ai',
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: true
 });
@@ -327,7 +327,25 @@ const stream = await client.chat.completions.create({
 ### Bootstrap OpenClaw com CLI
 
 ```bash
-modelhub openclaw setup --base-url https://your-modelhub.com --api-key YOUR_API_KEY
+npx @model-hub/openclaw-cli setup \
+  --base-url https://www.modelhub.com.br \
+  --api-key YOUR_API_KEY
+
+npx @model-hub/openclaw-cli models
+npx @model-hub/openclaw-cli doctor
+```
+
+Esse CLI escreve a configuracao real do OpenClaw em `~/.openclaw/openclaw.json`, criando:
+
+- provider customizado `modelhub`
+- `baseUrl` apontando para `https://www.modelhub.com.br/v1`
+- `api: openai-completions`
+- modelo primario em `agents.defaults.model.primary` no formato `modelhub/<provider/model-id>`
+
+Wrapper legado local:
+
+```bash
+modelhub openclaw setup --base-url https://www.modelhub.com.br --api-key YOUR_API_KEY
 modelhub openclaw models
 modelhub doctor
 ```
@@ -338,18 +356,18 @@ for await (const chunk of stream) {
 }
 ```
 
-## ⚠️ Códigos de Erro
+## âš ï¸ CÃ³digos de Erro
 
-| Código | Descrição |
+| CÃ³digo | DescriÃ§Ã£o |
 |--------|-----------|
-| 400 | Bad Request - Parâmetros inválidos |
-| 401 | Unauthorized - API key inválida ou ausente |
-| 403 | Forbidden - Sem permissão para acessar recurso |
-| 404 | Not Found - Recurso não encontrado |
+| 400 | Bad Request - ParÃ¢metros invÃ¡lidos |
+| 401 | Unauthorized - API key invÃ¡lida ou ausente |
+| 403 | Forbidden - Sem permissÃ£o para acessar recurso |
+| 404 | Not Found - Recurso nÃ£o encontrado |
 | 429 | Too Many Requests - Rate limit excedido |
 | 500 | Internal Server Error - Erro no servidor |
 | 502 | Bad Gateway - Erro no provedor upstream |
-| 503 | Service Unavailable - Serviço temporariamente indisponível |
+| 503 | Service Unavailable - ServiÃ§o temporariamente indisponÃ­vel |
 
 **Formato de Erro:**
 ```json
@@ -362,43 +380,44 @@ for await (const chunk of stream) {
 }
 ```
 
-## 🚦 Rate Limiting
+## ðŸš¦ Rate Limiting
 
-- **Limite padrão:** 100 requisições por minuto
+- **Limite padrÃ£o:** 100 requisiÃ§Ãµes por minuto
 - **Headers de resposta:**
   - `X-RateLimit-Limit`: Limite total
-  - `X-RateLimit-Remaining`: Requisições restantes
+  - `X-RateLimit-Remaining`: RequisiÃ§Ãµes restantes
   - `X-RateLimit-Reset`: Timestamp de reset
 
-## 📊 Uso e Custos
+## ðŸ“Š Uso e Custos
 
 Monitore seu uso em:
-- Dashboard: https://your-modelhub.com/dashboard
+- Dashboard: https://www.modelhub.com.br/dashboard
 - API: `GET /v1/usage`
 
-## 🔒 Segurança
+## ðŸ”’ SeguranÃ§a
 
 - Use HTTPS sempre
 - Nunca exponha sua API key
 - Rotacione keys regularmente
-- Use variáveis de ambiente
+- Use variÃ¡veis de ambiente
 
-## 📚 SDKs Compatíveis
+## ðŸ“š SDKs CompatÃ­veis
 
-Como a API é compatível com OpenAI, você pode usar qualquer SDK OpenAI:
+Como a API Ã© compatÃ­vel com OpenAI, vocÃª pode usar qualquer SDK OpenAI:
 
 - [OpenAI Python](https://github.com/openai/openai-python)
 - [OpenAI Node.js](https://github.com/openai/openai-node)
 - [OpenAI Go](https://github.com/sashabaranov/go-openai)
 - [OpenAI Java](https://github.com/TheoKanning/openai-java)
 
-## 🆘 Suporte
+## ðŸ†˜ Suporte
 
-- Documentação: https://docs.modelhub.dev
+- DocumentaÃ§Ã£o: https://docs.modelhub.dev
 - Issues: https://github.com/Geeks-Zone/modelhub/issues
 - Email: api@modelhub.dev
 
 ---
 
-**Versão da API:** v1  
-**Última atualização:** 2026-04-13
+**VersÃ£o da API:** v1  
+**Ãšltima atualizaÃ§Ã£o:** 2026-04-13
+

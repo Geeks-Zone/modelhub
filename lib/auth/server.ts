@@ -1,5 +1,4 @@
 import { createNeonAuth } from "@neondatabase/auth/next/server";
-import { ensureRuntimeEnvValidated } from "@/server/env";
 
 type NeonAuth = ReturnType<typeof createNeonAuth>;
 
@@ -7,7 +6,8 @@ let _auth: NeonAuth | undefined;
 
 function getAuth(): NeonAuth {
   if (!_auth) {
-    ensureRuntimeEnvValidated();
+    // Não chamar ensureRuntimeEnvValidated aqui: este módulo é avaliado pelo middleware (Edge/Turbopack),
+    // onde process.env pode não refletir o .env.local como no Node. Validação em instrumentation.ts e server/lib/db.ts.
     _auth = createNeonAuth({
       baseUrl: process.env.NEON_AUTH_BASE_URL!,
       cookies: {

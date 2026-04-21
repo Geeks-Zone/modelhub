@@ -200,17 +200,16 @@ export function createApiApp() {
         models: `${url.origin}/v1/models`,
         status: `${url.origin}/openclaw/status`,
       },
-      auth: {
+auth: {
         bearerFormat: "Authorization: Bearer <modelhub-api-key>",
-        deviceCode: { supported: false },
-        methods: ["api_key", "session_cookie"],
-        oauth: { supported: false },
-        qrCode: { supported: false },
+        methods: ["api_key"],
+        recommended: "api_key",
       },
       onboarding: {
         headless: true,
         presets,
-        supportsNativeProviderFlow: true,
+        requiresOpenClawInstalled: true,
+        supportsNativeProviderFlow: false,
       },
       provider: {
         id: "modelhub",

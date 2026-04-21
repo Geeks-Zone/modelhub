@@ -71,6 +71,7 @@ export type RecentUsageLog = {
   modelId: string | null;
   endpoint: string | null;
   statusCode: number;
+  errorDetail: string | null;
   createdAt: string;
   apiKey: {
     prefix: string;
@@ -135,3 +136,20 @@ export const providerCredentialSchema = z.object({
 export const apiKeyLabelSchema = z.object({
   label: z.string().max(100).optional(),
 });
+
+/** ID do modelo que efetivamente gerou a resposta (pode diferir do selecionado se houve fallback). */
+export const MODELHUB_EFFECTIVE_MODEL_HEADER = "x-modelhub-effective-model" as const;
+
+/** ID do modelo que o usuário pediu na requisição. */
+export const MODELHUB_REQUESTED_MODEL_HEADER = "x-modelhub-requested-model" as const;
+
+/** Presente e igual a `"true"` somente quando houve troca de modelo após falha (ex. `model_not_found`). */
+export const MODELHUB_MODEL_FALLBACK_USED_HEADER = "x-modelhub-model-fallback-used" as const;
+
+/** Lista dos IDs tentados na ordem, separados por vírgula (inclui o que respondeu com sucesso). */
+export const MODELHUB_MODELS_ATTEMPTED_HEADER = "x-modelhub-models-attempted" as const;
+
+/**
+ * Base64url(JSON) com falhas upstream antes de um 200 por fallback — para persistir em UsageLog.errorDetail.
+ */
+export const MODELHUB_FALLBACK_DIAGNOSTIC_HEADER = "x-modelhub-fallback-diagnostic" as const;

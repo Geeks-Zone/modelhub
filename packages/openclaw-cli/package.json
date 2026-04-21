@@ -1,0 +1,37 @@
+{
+  "name": "@model-hub/openclaw-cli",
+  "version": "1.0.1",
+  "description": "CLI leve para conectar o OpenClaw ao ModelHub via npx",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "modelhub-openclaw": "bin/modelhub-openclaw.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "modelhub",
+    "openclaw",
+    "openai-compatible",
+    "cli",
+    "npx"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Geeks-Zone/modelhub.git",
+    "directory": "packages/openclaw-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Geeks-Zone/modelhub/issues"
+  },
+  "homepage": "https://github.com/Geeks-Zone/modelhub/tree/main/packages/openclaw-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

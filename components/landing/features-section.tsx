@@ -1,7 +1,7 @@
 import {
   BrainCircuitIcon,
+  GlobeIcon,
   KeyRoundIcon,
-  LayoutDashboardIcon,
   MessageSquareTextIcon,
   PlugIcon,
   ShieldCheckIcon,
@@ -11,10 +11,10 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 
 const features = [
   {
-    icon: BrainCircuitIcon,
-    title: "Múltiplos Providers",
+    icon: GlobeIcon,
+    title: "Sem instalação",
     description:
-      "Conecte-se a OpenAI, Google, Meta, Groq, Mistral, Cerebras, Cohere e muitos outros — tudo em uma única plataforma.",
+      "Use direto no browser. Não precisa instalar nada na sua máquina — cadastre-se e comece a conversar.",
   },
   {
     icon: MessageSquareTextIcon,
@@ -29,16 +29,16 @@ const features = [
       "Endpoint /v1/chat/completions compatível com a API da OpenAI. Substitua a base URL e use suas ferramentas favoritas.",
   },
   {
+    icon: BrainCircuitIcon,
+    title: "Múltiplos Providers",
+    description:
+      "Conecte-se a OpenAI, Google, Meta, Groq, Mistral, Cerebras, Cohere e muitos outros — tudo em uma única plataforma.",
+  },
+  {
     icon: KeyRoundIcon,
     title: "Gerenciamento de Chaves",
     description:
       "Crie API keys para acesso programático e armazene credenciais de providers de forma segura no servidor.",
-  },
-  {
-    icon: LayoutDashboardIcon,
-    title: "Dashboard de Uso",
-    description:
-      "Acompanhe métricas de consumo, visualize logs de requisições e monitore a utilização por provider.",
   },
   {
     icon: ShieldCheckIcon,
@@ -58,6 +58,7 @@ export function FeaturesSection() {
           </h2>
           <p className="mt-3 text-muted-foreground">
             Uma plataforma completa para centralizar, gerenciar e consumir modelos de inteligência artificial.
+            Sem configuração complexa, sem dependências.
           </p>
         </div>
 
@@ -80,4 +81,3 @@ export function FeaturesSection() {
     </section>
   );
 }
-

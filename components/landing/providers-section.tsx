@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui/badge";
 const providerNames = [
   "OpenAI",
   "Google AI Studio",
-  "Meta AI",
   "Groq",
   "Mistral",
   "Cerebras",

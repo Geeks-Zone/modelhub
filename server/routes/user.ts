@@ -278,6 +278,7 @@ app.get("/usage/recent", async (c) => {
       },
       createdAt: true,
       endpoint: true,
+      errorDetail: true,
       id: true,
       modelId: true,
       providerId: true,

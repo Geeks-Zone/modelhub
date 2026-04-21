@@ -1,12 +1,12 @@
-<p align="right"><a href="README_EN.md">English</a></p>
+﻿﻿﻿﻿﻿﻿<p align="right"><a href="README_EN.md">English</a></p>
 
-# 🚀 ModelHub
+# ðŸš€ ModelHub
 
 <div align="center">
 
 ![ModelHub Logo](https://img.shields.io/badge/ModelHub-AI%20Gateway-blue?style=for-the-badge)
 
-**Hub unificado para múltiplos modelos de IA com API compatível OpenAI**
+**Hub unificado para mÃºltiplos modelos de IA com API compatÃ­vel OpenAI**
 
 [![CI](https://github.com/Geeks-Zone/modelhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Geeks-Zone/modelhub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -16,35 +16,35 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Geeks-Zone/modelhub/pulls)
 [![GitHub Stars](https://img.shields.io/github/stars/Geeks-Zone/modelhub)](https://github.com/Geeks-Zone/modelhub/stargazers)
 
-[Funcionalidades](#-funcionalidades) •
-[Demo](#-demo) •
-[Instalação](#-instalação) •
-[Documentação](#-documentação) •
-[Contribuir](#-contribuindo) •
-[Licença](#-licença)
+[Funcionalidades](#-funcionalidades) â€¢
+[Demo](#-demo) â€¢
+[InstalaÃ§Ã£o](#-instalaÃ§Ã£o) â€¢
+[DocumentaÃ§Ã£o](#-documentaÃ§Ã£o) â€¢
+[Contribuir](#-contribuindo) â€¢
+[LicenÃ§a](#-licenÃ§a)
 
 </div>
 
 ---
 
-## 📋 Sobre
+## ðŸ“‹ Sobre
 
-ModelHub é uma plataforma open-source que unifica o acesso a múltiplos provedores de IA (OpenAI, Anthropic, Google, Groq, Mistral e outros) através de uma única API compatível com OpenAI. Inclui interface de chat integrada, gerenciamento seguro de credenciais e sistema de autenticação robusto.
+ModelHub Ã© uma plataforma open-source que unifica o acesso a mÃºltiplos provedores de IA (OpenAI, Anthropic, Google, Groq, Mistral e outros) atravÃ©s de uma Ãºnica API compatÃ­vel com OpenAI. Inclui interface de chat integrada, gerenciamento seguro de credenciais e sistema de autenticaÃ§Ã£o robusto.
 
-### ✨ Funcionalidades
+### âœ¨ Funcionalidades
 
-- 🔌 **API Gateway Unificada** - Interface compatível com OpenAI para múltiplos provedores
-- 💬 **Chat Integrado** - Interface web moderna para interagir com modelos de IA
-- 🔐 **Autenticação Segura** - Sistema completo com Neon Auth
-- 🔑 **Gerenciamento de Credenciais** - Armazenamento criptografado de API keys
-- 📊 **Dashboard de Uso** - Monitore consumo e custos em tempo real
-- 📎 **Suporte a Anexos** - Upload de imagens, PDFs e documentos
-- 🌐 **Multi-tenant** - Suporte para múltiplos usuários e organizações
-- 🚀 **Deploy Fácil** - Pronto para Vercel, Docker e outras plataformas
-- 📝 **TypeScript** - Totalmente tipado para melhor DX
-- 🧪 **Testado** - Cobertura de testes com Vitest
+- ðŸ”Œ **API Gateway Unificada** - Interface compatÃ­vel com OpenAI para mÃºltiplos provedores
+- ðŸ’¬ **Chat Integrado** - Interface web moderna para interagir com modelos de IA
+- ðŸ” **AutenticaÃ§Ã£o Segura** - Sistema completo com Neon Auth
+- ðŸ”‘ **Gerenciamento de Credenciais** - Armazenamento criptografado de API keys
+- ðŸ“Š **Dashboard de Uso** - Monitore consumo e custos em tempo real
+- ðŸ“Ž **Suporte a Anexos** - Upload de imagens, PDFs e documentos
+- ðŸŒ **Multi-tenant** - Suporte para mÃºltiplos usuÃ¡rios e organizaÃ§Ãµes
+- ðŸš€ **Deploy FÃ¡cil** - Pronto para Vercel, Docker e outras plataformas
+- ðŸ“ **TypeScript** - Totalmente tipado para melhor DX
+- ðŸ§ª **Testado** - Cobertura de testes com Vitest
 
-### 🎯 Provedores Suportados
+### ðŸŽ¯ Provedores Suportados
 
 - OpenAI (GPT-4, GPT-3.5, etc.)
 - Anthropic (Claude 3.5, Claude 3, etc.)
@@ -56,7 +56,7 @@ ModelHub é uma plataforma open-source que unifica o acesso a múltiplos provedo
 - OpenRouter
 - Vercel AI Gateway
 
-## 🎬 Demo
+## ðŸŽ¬ Demo
 
 > Demo ao vivo: em breve
 
@@ -68,30 +68,30 @@ ModelHub é uma plataforma open-source que unifica o acesso a múltiplos provedo
 
 > Para gerar screenshots reais, execute `pnpm dev` e capture as telas da aplicacao.
 
-## 🚀 Instalação
+## ðŸš€ InstalaÃ§Ã£o
 
-### Pré-requisitos
+### PrÃ©-requisitos
 
 - Node.js >= 22.0.0
 - pnpm >= 10.0.0
 - Conta no [Neon](https://neon.tech) (PostgreSQL serverless)
 - API keys dos provedores que deseja usar
 
-### Instalação Rápida
+### InstalaÃ§Ã£o RÃ¡pida
 
 ```bash
-# Clone o repositório
+# Clone o repositÃ³rio
 git clone https://github.com/Geeks-Zone/modelhub.git
 cd modelhub
 
-# Instale as dependências
+# Instale as dependÃªncias
 pnpm install
 
-# Configure as variáveis de ambiente
+# Configure as variÃ¡veis de ambiente
 cp .env.example .env
 # Edite .env com suas credenciais
 
-# Execute as migrações do banco de dados
+# Execute as migraÃ§Ãµes do banco de dados
 pnpm prisma:migrate
 
 # Inicie o servidor de desenvolvimento
@@ -100,7 +100,7 @@ pnpm dev
 
 Acesse http://localhost:3000
 
-### 🐳 Docker
+### ðŸ³ Docker
 
 ```bash
 # Build da imagem
@@ -110,23 +110,23 @@ docker build -t modelhub .
 docker run -p 3000:3000 --env-file .env modelhub
 ```
 
-### ☁️ Deploy na Vercel
+### â˜ï¸ Deploy na Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Geeks-Zone/modelhub)
 
-1. Clique no botão acima
-2. Configure as variáveis de ambiente
+1. Clique no botÃ£o acima
+2. Configure as variÃ¡veis de ambiente
 3. Deploy!
 
-## 📖 Documentação
+## ðŸ“– DocumentaÃ§Ã£o
 
-### Configuração
+### ConfiguraÃ§Ã£o
 
-#### Variáveis de Ambiente
+#### VariÃ¡veis de Ambiente
 
-Veja [.env.example](.env.example) para todas as opções disponíveis.
+Veja [.env.example](.env.example) para todas as opÃ§Ãµes disponÃ­veis.
 
-**Obrigatórias:**
+**ObrigatÃ³rias:**
 ```env
 DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
@@ -150,7 +150,7 @@ O projeto usa Prisma com PostgreSQL (Neon):
 # Gerar cliente Prisma
 pnpm prisma:generate
 
-# Executar migrações
+# Executar migraÃ§Ãµes
 pnpm prisma:migrate
 
 # Push schema (desenvolvimento)
@@ -180,41 +180,91 @@ curl http://localhost:3000/v1/models \
 
 ### OpenClaw (modo OpenAI-compatible)
 
-Configuração mínima no OpenClaw:
+ConfiguraÃ§Ã£o mÃ­nima no OpenClaw:
 
-- **Base URL:** `https://SEU_MODELHUB/v1`
+- **Base URL:** `https://www.modelhub.com.br/v1`
 - **API:** OpenAI-compatible chat completions
 - **Auth:** `Authorization: Bearer <MODELHUB_API_KEY>`
 - **Modelo:** use IDs no formato `provider/model-id` (ex.: `openrouter/openai/gpt-oss-20b:free`)
 
 Presets recomendados:
 
-- **Coding:** modelos com reasoning/tool-use (ex.: família GPT OSS, Qwen Coder, Sonnet)
+- **Coding:** modelos com reasoning/tool-use (ex.: famÃ­lia GPT OSS, Qwen Coder, Sonnet)
 - **Low cost:** modelos `:free`, `mini` e `flash`
 - **Long context:** modelos `128k+` / `long context`
 
-Troubleshooting rápido:
+Troubleshooting rÃ¡pido:
 
 - **401/403 auth:** valide API key e header Bearer
-- **modelo inválido:** primeiro consulte `GET /v1/models` e use exatamente o `id` retornado
-- **timeout/latência:** troque para preset low-cost/flash e reduza `max_tokens`
+- **modelo invÃ¡lido:** primeiro consulte `GET /v1/models` e use exatamente o `id` retornado
+- **timeout/latÃªncia:** troque para preset low-cost/flash e reduza `max_tokens`
 
-### OpenClaw (setup com CLI ModelHub)
+### OpenClaw (setup real no `openclaw.json` via `npx`)
+
+O caminho recomendado agora e usar o CLI dedicado do OpenClaw/ModelHub via `npx`. Ele:
+
+- consulta `GET /openclaw/discovery` e `GET /openclaw/catalog`
+- sincroniza o catalogo do tenant no OpenClaw
+- grava a configuracao real em `~/.openclaw/openclaw.json`
+- cria um provider customizado `modelhub`
+- define o modelo primario no formato `modelhub/<provider/model-id>`
 
 ```bash
-# Setup completo (descoberta + catálogo + modelo recomendado)
-modelhub openclaw setup --base-url http://localhost:3000 --api-key SUA_API_KEY
+# Bootstrap completo do OpenClaw apontando para a instancia publica
+npx @model-hub/openclaw-cli setup \
+  --base-url https://www.modelhub.com.br \
+  --api-key SUA_API_KEY
 
-# Login por API key
-modelhub openclaw login --api-key SUA_API_KEY
+# Validar integracao ponta a ponta
+npx @model-hub/openclaw-cli doctor
 
-# Listar modelos disponíveis para o tenant
+# Listar os modelos sincronizados para o OpenClaw
+npx @model-hub/openclaw-cli models
+
+# Trocar o modelo primario dentro do openclaw.json
+npx @model-hub/openclaw-cli use groq/llama-3.3-70b-versatile
+```
+
+Estrutura gerada no OpenClaw:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "modelhub/openrouter/openai/gpt-oss-20b:free"
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "modelhub": {
+        "baseUrl": "https://www.modelhub.com.br/v1",
+        "apiKey": "sk-...",
+        "api": "openai-completions"
+      }
+    }
+  }
+}
+```
+
+### OpenClaw (wrapper legado do repositÃ³rio)
+
+```bash
+# O wrapper local continua disponivel para desenvolvimento
+modelhub openclaw setup --base-url https://www.modelhub.com.br --api-key SUA_API_KEY
+
+# Reautenticar e atualizar o catalogo
+modelhub openclaw login --base-url https://www.modelhub.com.br --api-key SUA_API_KEY
+
+# Listar modelos disponiveis para o provider customizado do OpenClaw
 modelhub openclaw models
 
-# Definir modelo padrão
+# Definir modelo primario no openclaw.json
 modelhub openclaw use openrouter/openai/gpt-oss-20b:free
 
-# Diagnóstico de integração
+# Diagnostico de integracao
 modelhub doctor
 ```
 
@@ -237,61 +287,61 @@ pnpm lint
 pnpm typecheck
 ```
 
-## 🏗️ Arquitetura
+## ðŸ—ï¸ Arquitetura
 
 ```
 modelhub/
-├── app/                    # Next.js App Router
-│   ├── (app)/             # Rotas autenticadas
-│   ├── api/               # API routes
-│   └── auth/              # Autenticação
-├── components/            # Componentes React
-│   ├── chat/             # Interface de chat
-│   ├── dashboard/        # Dashboard
-│   └── ui/               # Componentes UI (shadcn)
-├── lib/                   # Utilitários e lógica
-│   ├── auth/             # Autenticação
-│   └── chat-stream.ts    # Streaming de chat
-├── prisma/               # Schema e migrações
-├── server/               # Lógica do servidor (Hono)
-└── scripts/              # Scripts de build e deploy
+â”œâ”€â”€ app/                    # Next.js App Router
+â”‚   â”œâ”€â”€ (app)/             # Rotas autenticadas
+â”‚   â”œâ”€â”€ api/               # API routes
+â”‚   â””â”€â”€ auth/              # AutenticaÃ§Ã£o
+â”œâ”€â”€ components/            # Componentes React
+â”‚   â”œâ”€â”€ chat/             # Interface de chat
+â”‚   â”œâ”€â”€ dashboard/        # Dashboard
+â”‚   â””â”€â”€ ui/               # Componentes UI (shadcn)
+â”œâ”€â”€ lib/                   # UtilitÃ¡rios e lÃ³gica
+â”‚   â”œâ”€â”€ auth/             # AutenticaÃ§Ã£o
+â”‚   â””â”€â”€ chat-stream.ts    # Streaming de chat
+â”œâ”€â”€ prisma/               # Schema e migraÃ§Ãµes
+â”œâ”€â”€ server/               # LÃ³gica do servidor (Hono)
+â””â”€â”€ scripts/              # Scripts de build e deploy
 ```
 
-## 🤝 Contribuindo
+## ðŸ¤ Contribuindo
 
-Contribuições são muito bem-vindas! Veja [CONTRIBUTING.md](CONTRIBUTING.md) para detalhes.
+ContribuiÃ§Ãµes sÃ£o muito bem-vindas! Veja [CONTRIBUTING.md](CONTRIBUTING.md) para detalhes.
 
 ### Como Contribuir
 
 1. Fork o projeto
 2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+3. Commit suas mudanÃ§as (`git commit -m 'Add some AmazingFeature'`)
 4. Push para a branch (`git push origin feature/AmazingFeature`)
 5. Abra um Pull Request
 
-### Código de Conduta
+### CÃ³digo de Conduta
 
-Este projeto adota o [Contributor Covenant](CODE_OF_CONDUCT.md). Ao participar, você concorda em seguir seus termos.
+Este projeto adota o [Contributor Covenant](CODE_OF_CONDUCT.md). Ao participar, vocÃª concorda em seguir seus termos.
 
-## 🐛 Reportar Bugs
+## ðŸ› Reportar Bugs
 
 Encontrou um bug? Por favor, abra uma [issue](https://github.com/Geeks-Zone/modelhub/issues) com:
 
-- Descrição clara do problema
+- DescriÃ§Ã£o clara do problema
 - Passos para reproduzir
 - Comportamento esperado vs atual
-- Screenshots (se aplicável)
+- Screenshots (se aplicÃ¡vel)
 - Ambiente (OS, Node version, etc.)
 
-## 🔒 Segurança
+## ðŸ”’ SeguranÃ§a
 
-Para reportar vulnerabilidades de segurança, veja [SECURITY.md](SECURITY.md).
+Para reportar vulnerabilidades de seguranÃ§a, veja [SECURITY.md](SECURITY.md).
 
-## 📝 Licença
+## ðŸ“ LicenÃ§a
 
-Este projeto está licenciado sob a Licença MIT - veja [LICENSE](LICENSE) para detalhes.
+Este projeto estÃ¡ licenciado sob a LicenÃ§a MIT - veja [LICENSE](LICENSE) para detalhes.
 
-## 🙏 Agradecimentos
+## ðŸ™ Agradecimentos
 
 - [Next.js](https://nextjs.org/) - Framework React
 - [Prisma](https://www.prisma.io/) - ORM
@@ -300,29 +350,30 @@ Este projeto está licenciado sob a Licença MIT - veja [LICENSE](LICENSE) para 
 - [Hono](https://hono.dev/) - Framework web
 - Todos os [contribuidores](https://github.com/Geeks-Zone/modelhub/graphs/contributors)
 
-## 📞 Suporte
+## ðŸ“ž Suporte
 
-- 📧 Email: support@modelhub.dev
-- 💬 Discord: [Join our community](https://discord.gg/modelhub)
-- 🐦 Twitter: [@modelhub](https://twitter.com/modelhub)
-- 📖 Docs: [docs.modelhub.dev](https://docs.modelhub.dev)
+- ðŸ“§ Email: support@modelhub.dev
+- ðŸ’¬ Discord: [Join our community](https://discord.gg/modelhub)
+- ðŸ¦ Twitter: [@modelhub](https://twitter.com/modelhub)
+- ðŸ“– Docs: [docs.modelhub.dev](https://docs.modelhub.dev)
 
-## 🗺️ Roadmap
+## ðŸ—ºï¸ Roadmap
 
 - [ ] Suporte a mais provedores (Perplexity, Together AI)
 - [ ] Sistema de plugins
-- [ ] Análise de custos avançada
+- [ ] AnÃ¡lise de custos avanÃ§ada
 - [ ] Suporte a embeddings
 - [ ] API de fine-tuning
 - [ ] Mobile app
-- [ ] Integração com Langchain/LlamaIndex
+- [ ] IntegraÃ§Ã£o com Langchain/LlamaIndex
 
 ---
 
 <div align="center">
 
-**[⬆ Voltar ao topo](#-modelhub)**
+**[â¬† Voltar ao topo](#-modelhub)**
 
-Feito com ❤️ pela comunidade ModelHub
+Feito com â¤ï¸ pela comunidade ModelHub
 
 </div>
+

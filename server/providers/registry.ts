@@ -8,14 +8,13 @@ import githubModelsFetch, { models as githubmodelsModels } from "./githubmodels"
 import googleAiStudioFetch, { models as googleaistudioModels, fetchGoogleAiStudioModels } from "./googleaistudio";
 import groqFetch, { models as groqModels } from "./groq";
 import huggingFaceFetch, { models as huggingfaceModels } from "./huggingface";
-import metaaiFetch, { META_MODELS } from "./metaai";
 import mistralFetch, { models as mistralModels } from "./mistral";
 import nvidiaNimFetch, { models as nvidianimModels } from "./nvidianim";
 import openCodeZenFetch, { models as opencodezenModels } from "./opencodezen";
 import openrouterFetch, { models as openrouterModels } from "./openrouter";
 import quillbotFetch, { QUILLBOT_MODELS } from "./quillbot";
 import vercelGatewayFetch, { models as vercelgatewayModels } from "./vercelgateway";
-import { getCachedModels } from "../lib/model-cache";
+import { DEFAULT_MODELS_CACHE_TTL_MS, getCachedModels } from "../lib/model-cache";
 import { createOpenAiFetchModels } from "../lib/openai-compatible";
 import type { ProviderModel } from "../lib/provider-core";
 
@@ -58,7 +57,6 @@ export const providerRegistry: Record<string, ProviderEntry> = {
     models: huggingfaceModels,
     fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://router.huggingface.co/v1/models', apiKeyEnv: 'HUGGINGFACE_API_KEY', providerName: 'HuggingFace' }),
   },
-  metaai: { handler: metaaiFetch, models: META_MODELS },
   mistral: {
     handler: mistralFetch,
     models: mistralModels,
@@ -93,7 +91,7 @@ export async function getProviderModels(providerId: string): Promise<readonly Pr
   if (!entry) return [];
 
   if (entry.fetchModels) {
-    return getCachedModels(providerId, entry.fetchModels, entry.models);
+    return getCachedModels(providerId, entry.fetchModels, entry.models, DEFAULT_MODELS_CACHE_TTL_MS)
   }
 
   return entry.models;

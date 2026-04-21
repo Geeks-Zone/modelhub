@@ -8,7 +8,6 @@ import {
   HistoryIcon,
   Loader2Icon,
   MessageSquarePlusIcon,
-  PanelRightIcon,
   PencilIcon,
   SearchIcon,
   Trash2Icon,
@@ -44,6 +43,8 @@ type Props = {
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
   refreshKey: number;
+  mobileSheetOpen: boolean;
+  onMobileSheetOpenChange: (open: boolean) => void;
 };
 
 export function ChatHistorySidebar({
@@ -51,9 +52,10 @@ export function ChatHistorySidebar({
   onSelectConversation,
   onNewChat,
   refreshKey,
+  mobileSheetOpen,
+  onMobileSheetOpenChange,
 }: Props) {
   const isMobile = useIsMobile();
-  const [open, setOpen] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -236,14 +238,14 @@ export function ChatHistorySidebar({
                     onClick={() => {
                       if (renamingId === conv.id) return;
                       onSelectConversation(conv.id);
-                      if (isMobile) setOpen(false);
+                      if (isMobile) onMobileSheetOpenChange(false);
                     }}
                     onKeyDown={(e) => {
                       if (renamingId === conv.id) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         onSelectConversation(conv.id);
-                        if (isMobile) setOpen(false);
+                        if (isMobile) onMobileSheetOpenChange(false);
                       }
                     }}
                     className={cn(
@@ -345,30 +347,20 @@ export function ChatHistorySidebar({
 
   if (isMobile) {
     return (
-      <>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setOpen(true)}
-          title="Histórico de conversas"
-        >
-          <PanelRightIcon className="size-4" />
-        </Button>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="right" className="w-72 p-0">
-            <SheetHeader className="sr-only">
-              <SheetTitle>Histórico de conversas</SheetTitle>
-              <SheetDescription>Lista de conversas anteriores</SheetDescription>
-            </SheetHeader>
-            {listContent}
-          </SheetContent>
-        </Sheet>
-      </>
+      <Sheet open={mobileSheetOpen} onOpenChange={onMobileSheetOpenChange}>
+        <SheetContent side="right" className="w-72 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Histórico de conversas</SheetTitle>
+            <SheetDescription>Lista de conversas anteriores</SheetDescription>
+          </SheetHeader>
+          {listContent}
+        </SheetContent>
+      </Sheet>
     );
   }
 
   return (
-    <div className="hidden w-64 shrink-0 flex-col border-l border-border/60 bg-background/50 md:flex">
+    <div className="hidden h-full min-h-0 w-64 shrink-0 flex-col border-l border-border/60 bg-background/50 md:flex">
       {listContent}
     </div>
   );

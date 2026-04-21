@@ -8,17 +8,15 @@ import {
   messageContentAsText,
   upstreamErrorResponse,
 } from '../lib/provider-core'
+import { parseQuillbotUpstreamToAiStream } from '../lib/quillbot-stream'
 import { ensureDebugAccess, isProductionEnv } from '../lib/security'
 
 export const QUILLBOT_MODELS = [{ capabilities: { documents: true, images: false }, id: 'quillbot-ai', name: 'Quillbot AI Chat' }]
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
-const WEBAPP_VERSION = '40.148.5'
+/** Override via `QUILLBOT_WEBAPP_VERSION` if Quillbot bumps the webapp and chat starts failing. */
+const WEBAPP_VERSION = process.env.QUILLBOT_WEBAPP_VERSION?.trim() || '40.148.5'
 const QUILLBOT_TIMEOUT = 15000
-
-type QuillbotNdjsonChunk =
-  | { type?: 'content'; content?: string }
-  | { type?: 'status'; status?: string }
 
 function logQuillbotIssue(context: string, error: unknown): void {
   if (!isProductionEnv()) {
@@ -99,21 +97,9 @@ async function sendQuillbotChat(message: string): Promise<Response> {
 }
 
 function buildQuillbotTextResponse(rawText: string): Response {
-  const lines = rawText.split('\n').filter((line) => line.trim())
-  let output = ''
-
-  for (const line of lines) {
-    try {
-      const chunk = JSON.parse(line) as QuillbotNdjsonChunk
-      if (chunk.type === 'content' && chunk.content) {
-        output += `0:${JSON.stringify(chunk.content)}\n`
-      } else if (chunk.type === 'status' && chunk.status === 'completed') {
-        output += 'd:{"finishReason":"stop"}\n'
-      }
-    } catch (error) {
-      logQuillbotIssue('Ignoring malformed Quillbot NDJSON chunk.', error)
-    }
-  }
+  const output = parseQuillbotUpstreamToAiStream(rawText, (error) =>
+    logQuillbotIssue('Ignoring malformed Quillbot chunk (NDJSON/SSE).', error),
+  )
 
   return new Response(output, {
     headers: {
