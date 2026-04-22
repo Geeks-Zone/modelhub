@@ -1,38 +1,38 @@
-# âš¡ Guia de InÃ­cio RÃ¡pido
+# ⚡ Guia de Início Rápido
 
 Comece a usar o ModelHub em menos de 5 minutos!
 
-## ðŸŽ¯ PrÃ©-requisitos
+## 🎯 Pré-requisitos
 
-Antes de comeÃ§ar, certifique-se de ter:
+Antes de começar, certifique-se de ter:
 
-- âœ… Node.js >= 22.0.0 ([Download](https://nodejs.org))
-- âœ… pnpm >= 10.0.0 (`npm install -g pnpm`)
-- âœ… Git ([Download](https://git-scm.com))
-- âœ… Conta no [Neon](https://neon.tech) (gratuita)
+- ✅ Node.js >= 22.0.0 ([Download](https://nodejs.org))
+- ✅ pnpm >= 10.0.0 (`npm install -g pnpm`)
+- ✅ Git ([Download](https://git-scm.com))
+- ✅ Conta no [Neon](https://neon.tech) (gratuita)
 
-## ðŸš€ InstalaÃ§Ã£o em 3 Passos
+## 🚀 Instalação em 3 Passos
 
-### 1ï¸âƒ£ Clone e Instale
+### 1️⃣ Clone e Instale
 
 ```bash
-# Clone o repositÃ³rio
+# Clone o repositório
 git clone https://github.com/Geeks-Zone/modelhub.git
 cd modelhub
 
-# Instale as dependÃªncias
+# Instale as dependências
 pnpm install
 ```
 
-### 2ï¸âƒ£ Configure o Banco de Dados
+### 2️⃣ Configure o Banco de Dados
 
 **a) Crie um projeto no Neon:**
 1. Acesse [console.neon.tech](https://console.neon.tech)
 2. Clique em "Create Project"
-3. Escolha um nome e regiÃ£o
+3. Escolha um nome e região
 4. Copie as connection strings
 
-**b) Configure as variÃ¡veis de ambiente:**
+**b) Configure as variáveis de ambiente:**
 
 ```bash
 # Copie o arquivo de exemplo
@@ -42,7 +42,7 @@ cp .env.example .env
 nano .env  # ou use seu editor favorito
 ```
 
-**VariÃ¡veis obrigatÃ³rias:**
+**Variáveis obrigatórias:**
 ```env
 # Cole suas connection strings do Neon
 DATABASE_URL="postgresql://user:pass@host-pooler.region.aws.neon.tech/dbname?sslmode=require"
@@ -51,7 +51,7 @@ DIRECT_URL="postgresql://user:pass@host.region.aws.neon.tech/dbname?sslmode=requ
 # Configure Neon Auth (veja docs do Neon)
 NEON_AUTH_BASE_URL="https://your-project.neonauth.region.aws.neon.tech/dbname/auth"
 
-# Gere um secret aleatÃ³rio (32+ caracteres)
+# Gere um secret aleatório (32+ caracteres)
 NEON_AUTH_COOKIE_SECRET="seu-secret-aleatorio-aqui"
 
 # Gere uma chave de criptografia
@@ -67,33 +67,33 @@ openssl rand -base64 32
 openssl rand -hex 32
 ```
 
-**c) Execute as migraÃ§Ãµes:**
+**c) Execute as migrações:**
 
 ```bash
 pnpm prisma:migrate
 ```
 
-### 3ï¸âƒ£ Inicie o Servidor
+### 3️⃣ Inicie o Servidor
 
 ```bash
 # Modo desenvolvimento
 pnpm dev
 ```
 
-Acesse: http://localhost:3000 ðŸŽ‰
+Acesse: http://localhost:3000 🎉
 
-## ðŸŽ¨ Primeiro Uso
+## 🎨 Primeiro Uso
 
 ### 1. Criar Conta
 
 1. Acesse http://localhost:3000
 2. Clique em "Sign Up"
 3. Preencha email e senha
-4. FaÃ§a login
+4. Faça login
 
 ### 2. Adicionar Credenciais
 
-1. VÃ¡ para **Settings** (âš™ï¸)
+1. Vá para **Settings** (⚙️)
 2. Clique em **Credentials**
 3. Selecione um provedor (ex: OpenAI)
 4. Cole sua API key
@@ -105,25 +105,25 @@ Acesse: http://localhost:3000 ðŸŽ‰
 - Google: [makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
 - Groq: [console.groq.com/keys](https://console.groq.com/keys)
 
-### 3. ComeÃ§ar a Conversar
+### 3. Começar a Conversar
 
-1. VÃ¡ para **Chat** (ðŸ’¬)
+1. Vá para **Chat** (💬)
 2. Selecione um modelo
 3. Digite sua mensagem
 4. Pressione Enter ou clique em Enviar
 
-Pronto! VocÃª estÃ¡ usando o ModelHub! ðŸš€
+Pronto! Você está usando o ModelHub! 🚀
 
-## ðŸ”Œ Usar a API
+## 🔌 Usar a API
 
 ### 1. Criar API Key
 
-1. VÃ¡ para **Settings** â†’ **API Keys**
+1. Vá para **Settings** → **API Keys**
 2. Clique em **Create New Key**
-3. DÃª um nome (ex: "Meu App")
-4. Copie a key (nÃ£o serÃ¡ mostrada novamente!)
+3. Dê um nome (ex: "Meu App")
+4. Copie a key (não será mostrada novamente!)
 
-### 2. Fazer Primeira RequisiÃ§Ã£o
+### 2. Fazer Primeira Requisição
 
 **cURL:**
 ```bash
@@ -133,7 +133,7 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   -d '{
     "model": "gpt-4",
     "messages": [
-      {"role": "user", "content": "OlÃ¡!"}
+      {"role": "user", "content": "Olá!"}
     ]
   }'
 ```
@@ -149,7 +149,7 @@ client = OpenAI(
 
 response = client.chat.completions.create(
     model="gpt-4",
-    messages=[{"role": "user", "content": "OlÃ¡!"}]
+    messages=[{"role": "user", "content": "Olá!"}]
 )
 
 print(response.choices[0].message.content)
@@ -166,15 +166,15 @@ const client = new OpenAI({
 
 const response = await client.chat.completions.create({
   model: 'gpt-4',
-  messages: [{ role: 'user', content: 'OlÃ¡!' }]
+  messages: [{ role: 'user', content: 'Olá!' }]
 });
 
 console.log(response.choices[0].message.content);
 ```
 
-## ðŸ¾ OpenClaw em poucos passos
+## 🐾 OpenClaw em poucos passos
 
-### ConfiguraÃ§Ã£o mÃ­nima (OpenAI-compatible)
+### Configuração mínima (OpenAI-compatible)
 
 No OpenClaw, configure:
 
@@ -207,7 +207,7 @@ O CLI cria um provider `modelhub` no OpenClaw com:
 - `api`: `openai-completions`
 - `model.primary`: `modelhub/<provider/model-id>`
 
-### Wrapper legado do repositÃ³rio
+### Wrapper legado do repositório
 
 ```bash
 modelhub openclaw setup --base-url https://www.modelhub.com.br --api-key SUA_API_KEY
@@ -221,61 +221,61 @@ modelhub doctor
 - Low cost: modelos `:free`, `mini`, `flash`
 - Long context: modelos com contexto estendido (`128k+`)
 
-## ðŸŽ¯ PrÃ³ximos Passos
+## 🎯 Próximos Passos
 
 ### Explore as Features
 
-- ðŸ“Ž **Anexos**: Envie imagens e documentos no chat
-- ðŸ“Š **Dashboard**: Monitore uso e custos
-- ðŸ”„ **Streaming**: Respostas em tempo real
-- ðŸ”— **Compartilhar**: Compartilhe conversas com outros
+- 📎 **Anexos**: Envie imagens e documentos no chat
+- 📊 **Dashboard**: Monitore uso e custos
+- 🔄 **Streaming**: Respostas em tempo real
+- 🔗 **Compartilhar**: Compartilhe conversas com outros
 
 ### Aprenda Mais
 
-- ðŸ“– [DocumentaÃ§Ã£o Completa](../README.md)
-- ðŸ”Œ [Guia da API](API.md)
-- ðŸ’¡ [Exemplos](EXAMPLES.md)
-- â“ [FAQ](FAQ.md)
+- 📖 [Documentação Completa](../README.md)
+- 🔌 [Guia da API](API.md)
+- 💡 [Exemplos](EXAMPLES.md)
+- ❓ [FAQ](FAQ.md)
 
-### Deploy em ProduÃ§Ã£o
+### Deploy em Produção
 
-- â˜ï¸ [Deploy na Vercel](DEPLOYMENT.md#vercel-recomendado)
-- ðŸ³ [Deploy com Docker](DEPLOYMENT.md#docker)
-- ðŸ–¥ï¸ [Deploy em VPS](DEPLOYMENT.md#vpscloud)
+- ☁️ [Deploy na Vercel](DEPLOYMENT.md#vercel-recomendado)
+- 🐳 [Deploy com Docker](DEPLOYMENT.md#docker)
+- 🖥️ [Deploy em VPS](DEPLOYMENT.md#vpscloud)
 
-## ðŸ†˜ Problemas Comuns
+## 🆘 Problemas Comuns
 
 ### Erro: "Cannot connect to database"
 
-**SoluÃ§Ã£o:**
-1. Verifique se `DATABASE_URL` e `DIRECT_URL` estÃ£o corretas
-2. Teste a conexÃ£o: `pnpm prisma db pull`
-3. Verifique se o banco estÃ¡ acessÃ­vel
+**Solução:**
+1. Verifique se `DATABASE_URL` e `DIRECT_URL` estão corretas
+2. Teste a conexão: `pnpm prisma db pull`
+3. Verifique se o banco está acessível
 
 ### Erro: "Invalid API key"
 
-**SoluÃ§Ã£o:**
+**Solução:**
 1. Verifique se copiou a key completa
-2. Verifique se a key nÃ£o expirou
+2. Verifique se a key não expirou
 3. Teste a key diretamente no site do provedor
 
 ### Erro: "Invalid model" no OpenClaw
 
-**SoluÃ§Ã£o:**
-1. FaÃ§a `npx @model-hub/openclaw-cli models`
+**Solução:**
+1. Faça `npx @model-hub/openclaw-cli models`
 2. Copie o `model-id` exatamente como retornado depois de `modelhub/`
 3. Rode `npx @model-hub/openclaw-cli use <model-id>`
 
 ### Erro: timeout no OpenClaw
 
-**SoluÃ§Ã£o:**
+**Solução:**
 1. Rode `npx @model-hub/openclaw-cli doctor` para validar health/status/catalogo
 2. Troque para preset low-cost/flash
 3. Reduza `max_tokens` no cliente
 
 ### Erro: "Port 3000 already in use"
 
-**SoluÃ§Ã£o:**
+**Solução:**
 ```bash
 # Encontre o processo
 lsof -i :3000
@@ -289,7 +289,7 @@ PORT=3001 pnpm dev
 
 ### Build falha
 
-**SoluÃ§Ã£o:**
+**Solução:**
 ```bash
 # Limpe tudo
 rm -rf .next node_modules
@@ -301,18 +301,18 @@ pnpm install
 pnpm build
 ```
 
-## ðŸ’¡ Dicas
+## 💡 Dicas
 
 ### Performance
 
-- Use **Groq** para respostas ultra-rÃ¡pidas
+- Use **Groq** para respostas ultra-rápidas
 - Use **GPT-3.5** para economia
 - Use **streaming** para melhor UX
 
-### SeguranÃ§a
+### Segurança
 
 - Nunca commite arquivos `.env`
-- Use HTTPS em produÃ§Ã£o
+- Use HTTPS em produção
 - Rotacione API keys regularmente
 - Configure rate limiting
 
@@ -323,7 +323,7 @@ pnpm build
 - Use `pnpm test` para rodar testes
 - Use `pnpm typecheck` para verificar tipos
 
-## ðŸŽ“ Tutoriais
+## 🎓 Tutoriais
 
 ### Tutorial 1: Chatbot Simples
 
@@ -350,10 +350,10 @@ def chat(message, history=[]):
 
 # Uso
 history = []
-response, history = chat("OlÃ¡!", history)
+response, history = chat("Olá!", history)
 print(response)
 
-response, history = chat("Como vocÃª estÃ¡?", history)
+response, history = chat("Como você está?", history)
 print(response)
 ```
 
@@ -376,7 +376,7 @@ for model in models:
 ```python
 stream = client.chat.completions.create(
     model="gpt-4",
-    messages=[{"role": "user", "content": "Conte uma histÃ³ria"}],
+    messages=[{"role": "user", "content": "Conte uma história"}],
     stream=True
 )
 
@@ -385,24 +385,24 @@ for chunk in stream:
         print(chunk.choices[0].delta.content, end="")
 ```
 
-## ðŸ“š Recursos
+## 📚 Recursos
 
-- [DocumentaÃ§Ã£o](../README.md)
+- [Documentação](../README.md)
 - [API Reference](API.md)
 - [Examples](EXAMPLES.md)
 - [FAQ](FAQ.md)
 - [Discord](https://discord.gg/modelhub)
 
-## ðŸ¤ Precisa de Ajuda?
+## 🤝 Precisa de Ajuda?
 
-- ðŸ’¬ [Discord Community](https://discord.gg/modelhub)
-- ðŸ› [Report Issues](https://github.com/Geeks-Zone/modelhub/issues)
-- ðŸ’¡ [Discussions](https://github.com/Geeks-Zone/modelhub/discussions)
-- ðŸ“§ [Email](mailto:support@modelhub.dev)
+- 💬 [Discord Community](https://discord.gg/modelhub)
+- 🐛 [Report Issues](https://github.com/Geeks-Zone/modelhub/issues)
+- 💡 [Discussions](https://github.com/Geeks-Zone/modelhub/discussions)
+- 📧 [Email](mailto:support@modelhub.dev)
 
 ---
 
-**Pronto para comeÃ§ar?** ðŸš€
+**Pronto para começar?** 🚀
 
 ```bash
 git clone https://github.com/Geeks-Zone/modelhub.git
@@ -414,5 +414,5 @@ pnpm prisma:migrate
 pnpm dev
 ```
 
-**Divirta-se construindo com IA! ðŸŽ‰**
+**Divirta-se construindo com IA! 🎉**
 
