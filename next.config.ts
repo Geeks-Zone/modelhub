@@ -45,10 +45,6 @@ const nextConfig: NextConfig = {
     NEON_AUTH_BASE_URL: neonAuthBaseUrl,
     NEON_AUTH_COOKIE_SECRET: neonAuthCookieSecret,
   },
-  outputFileTracingIncludes: {
-    "/*": ["./node_modules/jsdom/lib/jsdom/browser/**/*"],
-  },
-  /** Evita empacotar jsdom no bundle do servidor (paths como D:\\ROOT\\… quebram default-stylesheet.css). */
   serverExternalPackages: ["jsdom"],
   reactCompiler: true,
   transpilePackages: ["html-encoding-sniffer", "@exodus/bytes"],
