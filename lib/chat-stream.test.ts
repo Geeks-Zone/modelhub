@@ -22,7 +22,7 @@ describe("parseChatStream", () => {
 
     const response = createStreamResponse([
       '0:"Ol"\n',
-      '0:"Ã¡"\n',
+      '0:"á"\n',
       '9:{"toolCallId":"tool-1","toolName":"search","args":{"q":"test"}}\n',
       'a:{"toolCallId":"tool-1","result":{"ok":true}}\n',
       'data: {"type":"text-delta","delta":" mundo"}\n',
@@ -37,7 +37,7 @@ describe("parseChatStream", () => {
     expect(parsed).toEqual({
       errorMessage: undefined,
       hadPartialOutput: true,
-      text: "OlÃ¡ mundo",
+      text: "Olá mundo",
     });
     expect(onTextDelta).toHaveBeenCalledTimes(3);
     expect(onToolStart).toHaveBeenCalledWith({

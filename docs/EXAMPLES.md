@@ -1,15 +1,15 @@
-﻿# ðŸ’¡ Exemplos de Uso
+# 💡 Exemplos de Uso
 
-Exemplos prÃ¡ticos de como usar o ModelHub em diferentes cenÃ¡rios.
+Exemplos práticos de como usar o ModelHub em diferentes cenários.
 
-## ðŸ“‹ Ãndice
+## 📋 Índice
 
 - [Exemplos de API](#exemplos-de-api)
 - [Exemplos de SDK](#exemplos-de-sdk)
 - [Casos de Uso](#casos-de-uso)
-- [IntegraÃ§Ãµes](#integraÃ§Ãµes)
+- [Integrações](#integrações)
 
-## ðŸ”Œ Exemplos de API
+## 🔌 Exemplos de API
 
 ### Chat Simples
 
@@ -20,7 +20,7 @@ curl -X POST https://www.modelhub.com.br/v1/chat/completions \
   -d '{
     "model": "gpt-4",
     "messages": [
-      {"role": "user", "content": "OlÃ¡! Como vocÃª estÃ¡?"}
+      {"role": "user", "content": "Olá! Como você está?"}
     ]
   }'
 ```
@@ -36,7 +36,7 @@ curl -X POST https://www.modelhub.com.br/v1/chat/completions \
     "messages": [
       {
         "role": "system",
-        "content": "VocÃª Ã© um assistente especializado em programaÃ§Ã£o Python."
+        "content": "Você é um assistente especializado em programação Python."
       },
       {
         "role": "user",
@@ -57,7 +57,7 @@ curl -X POST https://www.modelhub.com.br/v1/chat/completions \
   -d '{
     "model": "gpt-4",
     "messages": [
-      {"role": "user", "content": "Conte uma histÃ³ria curta"}
+      {"role": "user", "content": "Conte uma história curta"}
     ],
     "stream": true
   }'
@@ -70,9 +70,9 @@ curl https://www.modelhub.com.br/v1/models \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-## ðŸ Python
+## 🐍 Python
 
-### BÃ¡sico
+### Básico
 
 ```python
 from openai import OpenAI
@@ -85,7 +85,7 @@ client = OpenAI(
 response = client.chat.completions.create(
     model="gpt-4",
     messages=[
-        {"role": "user", "content": "OlÃ¡!"}
+        {"role": "user", "content": "Olá!"}
     ]
 )
 
@@ -104,7 +104,7 @@ client = OpenAI(
 
 stream = client.chat.completions.create(
     model="gpt-4",
-    messages=[{"role": "user", "content": "Conte uma histÃ³ria"}],
+    messages=[{"role": "user", "content": "Conte uma história"}],
     stream=True
 )
 
@@ -113,14 +113,14 @@ for chunk in stream:
         print(chunk.choices[0].delta.content, end="")
 ```
 
-### MÃºltiplas Mensagens
+### Múltiplas Mensagens
 
 ```python
 messages = [
-    {"role": "system", "content": "VocÃª Ã© um poeta."},
-    {"role": "user", "content": "Escreva um haiku sobre programaÃ§Ã£o"},
-    {"role": "assistant", "content": "CÃ³digo flui suave\nBugs danÃ§am na tela brilhante\nDebug traz a paz"},
-    {"role": "user", "content": "Agora sobre cafÃ©"}
+    {"role": "system", "content": "Você é um poeta."},
+    {"role": "user", "content": "Escreva um haiku sobre programação"},
+    {"role": "assistant", "content": "Código flui suave\nBugs dançam na tela brilhante\nDebug traz a paz"},
+    {"role": "user", "content": "Agora sobre café"}
 ]
 
 response = client.chat.completions.create(
@@ -143,7 +143,7 @@ client = OpenAI(
 )
 
 models = ["gpt-4", "claude-3-5-sonnet-20241022", "gemini-2.0-flash-exp"]
-prompt = "Explique inteligÃªncia artificial em uma frase."
+prompt = "Explique inteligência artificial em uma frase."
 
 for model in models:
     start = time.time()
@@ -161,9 +161,9 @@ for model in models:
     print(f"Tokens: {response.usage.total_tokens}")
 ```
 
-## ðŸ“˜ JavaScript/TypeScript
+## 📘 JavaScript/TypeScript
 
-### Node.js BÃ¡sico
+### Node.js Básico
 
 ```typescript
 import OpenAI from 'openai';
@@ -177,7 +177,7 @@ async function chat() {
   const response = await client.chat.completions.create({
     model: 'gpt-4',
     messages: [
-      { role: 'user', content: 'OlÃ¡!' }
+      { role: 'user', content: 'Olá!' }
     ]
   });
 
@@ -200,7 +200,7 @@ const client = new OpenAI({
 async function streamChat() {
   const stream = await client.chat.completions.create({
     model: 'gpt-4',
-    messages: [{ role: 'user', content: 'Conte uma histÃ³ria' }],
+    messages: [{ role: 'user', content: 'Conte uma história' }],
     stream: true
   });
 
@@ -268,7 +268,7 @@ export function ChatComponent() {
 }
 ```
 
-## ðŸŽ¯ Casos de Uso
+## 🎯 Casos de Uso
 
 ### Chatbot de Suporte
 
@@ -284,9 +284,9 @@ def support_bot(user_message: str, conversation_history: list):
     messages = [
         {
             "role": "system",
-            "content": """VocÃª Ã© um assistente de suporte tÃ©cnico.
+            "content": """Você é um assistente de suporte técnico.
             Seja educado, claro e objetivo.
-            Se nÃ£o souber a resposta, admita e ofereÃ§a alternativas."""
+            Se não souber a resposta, admita e ofereça alternativas."""
         }
     ]
     
@@ -308,7 +308,7 @@ bot_response = support_bot(user_msg, history)
 print(bot_response)
 ```
 
-### AnÃ¡lise de Sentimento
+### Análise de Sentimento
 
 ```python
 def analyze_sentiment(text: str):
@@ -335,7 +335,7 @@ sentiment = analyze_sentiment(text)
 print(f"Sentimento: {sentiment}")
 ```
 
-### Gerador de CÃ³digo
+### Gerador de Código
 
 ```python
 def generate_code(description: str, language: str = "python"):
@@ -344,11 +344,11 @@ def generate_code(description: str, language: str = "python"):
         messages=[
             {
                 "role": "system",
-                "content": f"VocÃª Ã© um especialista em {language}. Gere cÃ³digo limpo e bem documentado."
+                "content": f"Você é um especialista em {language}. Gere código limpo e bem documentado."
             },
             {
                 "role": "user",
-                "content": f"Crie uma funÃ§Ã£o que: {description}"
+                "content": f"Crie uma função que: {description}"
             }
         ],
         temperature=0.3
@@ -357,7 +357,7 @@ def generate_code(description: str, language: str = "python"):
     return response.choices[0].message.content
 
 # Uso
-code = generate_code("ordena uma lista de dicionÃ¡rios por uma chave especÃ­fica")
+code = generate_code("ordena uma lista de dicionários por uma chave específica")
 print(code)
 ```
 
@@ -370,7 +370,7 @@ def summarize(text: str, max_words: int = 100):
         messages=[
             {
                 "role": "system",
-                "content": f"Resuma o texto em no mÃ¡ximo {max_words} palavras."
+                "content": f"Resuma o texto em no máximo {max_words} palavras."
             },
             {
                 "role": "user",
@@ -388,7 +388,7 @@ summary = summarize(long_text, max_words=50)
 print(summary)
 ```
 
-## ðŸ”— IntegraÃ§Ãµes
+## 🔗 Integrações
 
 ### Langchain
 
@@ -403,8 +403,8 @@ llm = ChatOpenAI(
 )
 
 messages = [
-    SystemMessage(content="VocÃª Ã© um assistente Ãºtil."),
-    HumanMessage(content="OlÃ¡!")
+    SystemMessage(content="Você é um assistente útil."),
+    HumanMessage(content="Olá!")
 ]
 
 response = llm(messages)
@@ -422,7 +422,7 @@ llm = OpenAI(
     model="gpt-4"
 )
 
-response = llm.complete("Explique inteligÃªncia artificial")
+response = llm.complete("Explique inteligência artificial")
 print(response)
 ```
 
@@ -484,9 +484,9 @@ def message_hello(message, say):
 app.start(port=3000)
 ```
 
-## ðŸ“š Recursos
+## 📚 Recursos
 
-- [DocumentaÃ§Ã£o da API](API.md)
+- [Documentação da API](API.md)
 - [OpenAI Python SDK](https://github.com/openai/openai-python)
 - [OpenAI Node.js SDK](https://github.com/openai/openai-node)
 - [Langchain Docs](https://python.langchain.com/)
@@ -494,5 +494,5 @@ app.start(port=3000)
 
 ---
 
-**Tem um exemplo interessante?** Contribua com esta documentaÃ§Ã£o!
+**Tem um exemplo interessante?** Contribua com esta documentação!
 
