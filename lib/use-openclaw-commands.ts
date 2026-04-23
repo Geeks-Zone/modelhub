@@ -3,7 +3,7 @@ import { DEFAULT_MODEL_ID } from "@/lib/defaults";
 const MODELHUB_BASE_URL = "https://www.modelhub.com.br";
 
 type OpenClawCommands = {
-  bridge: string;
+  run: string;
   install: string;
   model: string;
   setup: (key?: string) => string;
@@ -15,7 +15,7 @@ export function useOpenClawCommands(apiKey?: string | null): OpenClawCommands {
   const resolvedKey = apiKey ?? "SUA_API_KEY";
 
   return {
-    bridge: "npx @model-hub/openclaw-cli bridge",
+    run: "npx @model-hub/openclaw-cli run",
     install: "npm install -g openclaw@latest",
     model: `npx @model-hub/openclaw-cli use ${DEFAULT_MODEL_ID}`,
     setup: (key?: string) =>

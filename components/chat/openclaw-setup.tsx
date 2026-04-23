@@ -53,7 +53,7 @@ export function OpenClawSetupDialog({ mode, onModeChange, onGatewaySaved, onBrid
         <Tabs value={mode} onValueChange={(v) => onModeChange(v as OpenClawMode)}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="bridge">
-              Bridge <span className="ml-1 rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400">recomendado</span>
+              Local <span className="ml-1 rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400">run</span>
             </TabsTrigger>
             <TabsTrigger value="gateway">Gateway</TabsTrigger>
           </TabsList>
@@ -124,26 +124,25 @@ function BridgeTab({
     try {
       saveOpenClawBridgeSettings(settings);
       onSaved(settings, bridgeOk);
-      toast.success("Bridge conectado!");
+      toast.success("OpenClaw local conectado!");
       onOpenChange(false);
     } catch {
       toast.error("Erro ao guardar configuração.");
     }
   }
 
-  const bridgeCommand = "npx @model-hub/openclaw-cli bridge";
+  const runCommand = "npx @model-hub/openclaw-cli run";
 
   return (
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <TerminalSquareIcon className="size-5" />
-          OpenClaw via Bridge
+          OpenClaw local
         </DialogTitle>
         <DialogDescription>
-          O bridge liga a nossa interface web ao OpenClaw local. O browser fala diretamente com o bridge
-          na sua máquina — funciona mesmo com o ModelHub em produção. Troque de modelo pelo dropdown e o
-          OpenClaw atualiza em tempo real.
+          O comando <code className="rounded bg-muted px-1 py-0.5 text-[11px]">run</code> inicia a integração local do
+          OpenClaw na sua máquina. Funciona mesmo com o ModelHub em produção e atualiza o modelo em tempo real.
         </DialogDescription>
       </DialogHeader>
 
@@ -151,13 +150,13 @@ function BridgeTab({
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           <strong>1)</strong> Instale e configure o OpenClaw com <code className="rounded bg-muted px-1 py-0.5">npx @model-hub/openclaw-cli setup</code>
           <br />
-          <strong>2)</strong> Inicie o bridge:
+          <strong>2)</strong> Inicie a integracao local:
         </div>
 
-        <CommandBlock command={bridgeCommand} copyId="bridge-start" label="Copiar comando" successMessage="Comando copiado!" />
+        <CommandBlock command={runCommand} copyId="run-start" label="Copiar comando" successMessage="Comando copiado!" />
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">URL do bridge</label>
+          <label className="text-sm font-medium">URL local</label>
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
@@ -169,7 +168,7 @@ function BridgeTab({
         {probing ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2Icon className="size-4 animate-spin" />
-            A verificar bridge...
+            A verificar integracao local...
           </div>
         ) : !probing && gatewayModels >= 0 ? (
           <div className={`rounded-lg border px-3 py-2 text-xs ${
@@ -179,11 +178,11 @@ function BridgeTab({
           }`}>
             {bridgeOk ? (
               <>
-                <strong>OK</strong> — Bridge conectado · {gatewayModels} modelos disponíveis
-                {currentModel && <> · Modelo: <code className="rounded bg-muted px-1 py-0.5">{currentModel}</code></>}
+                <strong>OK</strong> - OpenClaw local conectado. {gatewayModels} modelos disponíveis
+                {currentModel && <> - Modelo: <code className="rounded bg-muted px-1 py-0.5">{currentModel}</code></>}
               </>
             ) : (
-              <>Bridge não acessível em <code className="rounded bg-muted px-1 py-0.5">{baseUrl}</code>. Verifique que o comando está em execução no terminal.</>
+              <>Integração local indisponível em <code className="rounded bg-muted px-1 py-0.5">{baseUrl}</code>. Verifique se o comando está em execução no terminal.</>
             )}
           </div>
         ) : null}
@@ -191,7 +190,7 @@ function BridgeTab({
         <div className="flex gap-2">
           <Button type="button" variant="default" disabled={probing} onClick={() => void handleProbe(baseUrl)}>
             {probing ? <Loader2Icon className="mr-1 size-3.5 animate-spin" /> : null}
-            {probing ? "A verificar…" : "Verificar ligação"}
+            {probing ? "A verificar..." : "Verificar conexão"}
           </Button>
           <Button type="button" variant="outline" disabled={probing || !bridgeOk} onClick={() => void handleConnect()}>
             Conectar
@@ -199,8 +198,8 @@ function BridgeTab({
         </div>
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          O bridge corre na sua máquina e liga o browser ao OpenClaw. Sem proxy pelo servidor —
-          funciona mesmo em produção (Vercel). Para chat sem bridge, use a aba Gateway.
+          A integração local roda na sua máquina e liga o browser ao OpenClaw.
+          Sem proxy pelo servidor - funciona mesmo em produção (Vercel). Para o modo manual, use a aba Gateway.
         </p>
       </div>
     </>
@@ -371,9 +370,9 @@ function GatewayTab({
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">avançado</span>
         </DialogTitle>
         <DialogDescription>
-          Este diálogo configura o <strong>gateway local</strong> do OpenClaw (requer que o gateway esteja
-          em execução na sua máquina). Para a maioria dos utilizadores, o método recomendado é usar o{" "}
-          <strong>bridge</strong> — veja a aba Bridge.
+          Este diálogo configura o <strong>gateway local</strong> do OpenClaw e exige que ele já esteja em
+          execução na sua máquina. Para a maioria dos utilizadores, o método recomendado é usar a aba{" "}
+          <strong>Local</strong> com o comando <code className="rounded bg-muted px-1 py-0.5 text-[11px]">run</code>.
         </DialogDescription>
       </DialogHeader>
 

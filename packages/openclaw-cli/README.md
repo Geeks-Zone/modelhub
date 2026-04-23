@@ -14,7 +14,6 @@ npx @model-hub/openclaw-cli run \
 
 ```bash
 npx @model-hub/openclaw-cli run [--api-key KEY] [--base-url URL] [--bridge-port PORT]
-npx @model-hub/openclaw-cli bridge [--api-key KEY] [--base-url URL]
 npx @model-hub/openclaw-cli setup [--base-url URL] [--api-key KEY] [--model MODEL]
 npx @model-hub/openclaw-cli sync [--base-url URL] [--api-key KEY]
 npx @model-hub/openclaw-cli login [--base-url URL] [--api-key KEY]
@@ -25,7 +24,7 @@ npx @model-hub/openclaw-cli doctor [--base-url URL] [--api-key KEY] [--model MOD
 
 ## O que ele faz
 
-- `run` e o fluxo principal: diagnostica, sincroniza a configuracao e inicia o bridge local
+- `run` e o fluxo principal: diagnostica, sincroniza a configuracao e inicia a integracao local
 - `bridge` continua disponivel como alias de compatibilidade para `run`
 - `setup`, `sync`, `login`, `models`, `use` e `doctor` ficam disponiveis como comandos avancados
 - A configuracao real do OpenClaw continua sendo escrita em `~/.openclaw/openclaw.json`

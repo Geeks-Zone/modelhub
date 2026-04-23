@@ -1617,7 +1617,7 @@ export function ChatPage() {
                     <SelectItem value={OPENCLAW_PROVIDER_ID}>
                       <span className="flex min-w-0 items-center gap-1.5">
                         <span className="truncate">OpenClaw</span>
-                        <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">{openclaw.mode === "bridge" ? "bridge" : "gateway"}</span>
+                        <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">{openclaw.mode === "bridge" ? "local" : "gateway"}</span>
                         {check ? (
                           <CheckIcon
                             className="size-3 shrink-0 text-emerald-600/65 dark:text-emerald-500/70"
@@ -1675,7 +1675,7 @@ export function ChatPage() {
                       : selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "gateway" && openclaw.gatewayProbe.status === "loading"
                         ? "A verificar gateway…"
                         : selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge" && openclaw.bridgeProbe.status === "loading"
-                          ? "A verificar bridge…"
+                          ? "A verificar integração local..."
                           : selectedProviderId === OPENCLAW_PROVIDER_ID && !selectedProviderReady
                             ? "Configurar…"
                             : selectedProviderReady
@@ -1724,13 +1724,13 @@ export function ChatPage() {
             ) : selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge" && openclaw.bridgeProbe.status === "loading" ? (
               <>
                 <Loader2Icon className="mr-1 inline size-3 animate-spin" />
-                <span className="hidden sm:inline">A verificar bridge</span>
+                <span className="hidden sm:inline">A verificar integração local</span>
                 <span className="sm:hidden">…</span>
               </>
             ) : selectedProviderId === OPENCLAW_PROVIDER_ID ? (
               <>
                 <span className="sm:hidden">Pendente</span>
-                <span className="hidden sm:inline">{openclaw.mode === "bridge" ? "Bridge pendente" : "Gateway pendente"}</span>
+                <span className="hidden sm:inline">{openclaw.mode === "bridge" ? "Integração local pendente" : "Gateway pendente"}</span>
               </>
             ) : (
               <>
@@ -1859,7 +1859,7 @@ export function ChatPage() {
               <AlertTitle>Configure o OpenClaw</AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>
-                  O bridge liga a interface web ao OpenClaw local. No terminal, execute{" "}
+                  A integração local liga a interface web ao OpenClaw local. No terminal, execute{" "}
                   <code className="rounded bg-muted px-1 py-0.5 text-xs">npx @model-hub/openclaw-cli run</code> e
                   depois clique <strong>Configurar</strong>.
                 </p>
@@ -1882,9 +1882,9 @@ export function ChatPage() {
         <div className="shrink-0 px-3 pt-3 md:px-4">
           <Alert>
             <ShieldOffIcon data-icon="inline-start" />
-            <AlertTitle>Bridge em modo limitado</AlertTitle>
+            <AlertTitle>Integração local em modo limitado</AlertTitle>
             <AlertDescription>
-              O WebSocket do bridge nao respondeu e o chat caiu para o fallback HTTP. As mensagens continuam a funcionar,
+              O WebSocket da integração local não respondeu e o chat caiu para o fallback HTTP. As mensagens continuam a funcionar,
               mas approvals e isolamento completo de sessao ficam indisponiveis ate o WS voltar.
             </AlertDescription>
           </Alert>

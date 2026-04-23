@@ -222,10 +222,10 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
       void probeOpenClawBridge(base).then((result) => {
         if (result && result.bridge.status === "ok") {
           setBridgeProbe({ status: "ok" });
-          toast.success("Bridge OpenClaw conectado.");
+          toast.success("OpenClaw local conectado.");
         } else {
           setBridgeProbe({ status: "error" });
-          toast.error("Não foi possível confirmar o bridge OpenClaw.");
+          toast.error("Não foi possível confirmar a integração local do OpenClaw.");
         }
       });
     } else {
