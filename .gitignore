@@ -79,6 +79,8 @@ apps/
 packages/*
 !packages/openclaw-cli/
 !packages/openclaw-cli/**
+packages/openclaw-cli/node_modules/
+packages/openclaw-cli/node_modules/**
 
 # Custom
 .github/instructions/codacy.instructions.md

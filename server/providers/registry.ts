@@ -2,17 +2,23 @@ import cerebrasFetch, { models as cerebrasModels } from "./cerebras";
 import cloudflareWorkersAiFetch, { models as cloudflareworkersaiModels, fetchCloudflareModels } from "./cloudflareworkersai";
 import codestralFetch, { models as codestralModels } from "./codestral";
 import cohereFetch, { models as cohereModels, fetchCohereModels } from "./cohere";
+import deepseekFetch, { models as deepseekModels } from "./deepseek";
 import duckaiFetch, { DUCKAI_MODELS, fetchDuckAiModels } from "./duckai";
+import fireworksFetch, { models as fireworksModels } from "./fireworks";
 import gatewayFetch, { GATEWAY_MODELS, fetchGatewayModels } from "./gateway";
 import githubModelsFetch, { models as githubmodelsModels } from "./githubmodels";
 import googleAiStudioFetch, { models as googleaistudioModels, fetchGoogleAiStudioModels } from "./googleaistudio";
 import groqFetch, { models as groqModels } from "./groq";
+
 import huggingFaceFetch, { models as huggingfaceModels } from "./huggingface";
 import mistralFetch, { models as mistralModels } from "./mistral";
 import nvidiaNimFetch, { models as nvidianimModels } from "./nvidianim";
 import openCodeZenFetch, { models as opencodezenModels } from "./opencodezen";
 import openrouterFetch, { models as openrouterModels } from "./openrouter";
+import perplexityFetch, { models as perplexityModels } from "./perplexity";
+import pollinationsFetch, { POLLINATIONS_MODELS, fetchPollinationsModels } from "./pollinations";
 import quillbotFetch, { QUILLBOT_MODELS } from "./quillbot";
+import togetheraiFetch, { models as togetheraiModels } from "./togetherai";
 import vercelGatewayFetch, { models as vercelgatewayModels } from "./vercelgateway";
 import { DEFAULT_MODELS_CACHE_TTL_MS, getCachedModels } from "../lib/model-cache";
 import { createOpenAiFetchModels } from "../lib/openai-compatible";
@@ -39,7 +45,17 @@ export const providerRegistry: Record<string, ProviderEntry> = {
     fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://codestral.mistral.ai/v1/models', apiKeyEnv: 'CODESTRAL_API_KEY', providerName: 'Mistral Codestral' }),
   },
   cohere: { handler: cohereFetch, models: cohereModels, fetchModels: fetchCohereModels },
+  deepseek: {
+    handler: deepseekFetch,
+    models: deepseekModels,
+    fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://api.deepseek.com/v1/models', apiKeyEnv: 'DEEPSEEK_API_KEY', providerName: 'DeepSeek' }),
+  },
   duckai: { handler: duckaiFetch, models: DUCKAI_MODELS, fetchModels: fetchDuckAiModels },
+  fireworks: {
+    handler: fireworksFetch,
+    models: fireworksModels,
+    fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://api.fireworks.ai/inference/v1/models', apiKeyEnv: 'FIREWORKS_API_KEY', providerName: 'Fireworks AI' }),
+  },
   gateway: { handler: gatewayFetch, models: GATEWAY_MODELS, fetchModels: fetchGatewayModels },
   githubmodels: {
     handler: githubModelsFetch,
@@ -52,6 +68,7 @@ export const providerRegistry: Record<string, ProviderEntry> = {
     models: groqModels,
     fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://api.groq.com/openai/v1/models', apiKeyEnv: 'GROQ_API_KEY', providerName: 'Groq' }),
   },
+
   huggingface: {
     handler: huggingFaceFetch,
     models: huggingfaceModels,
@@ -77,7 +94,18 @@ export const providerRegistry: Record<string, ProviderEntry> = {
     models: openrouterModels,
     fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://openrouter.ai/api/v1/models', apiKeyEnv: 'OPENROUTER_API_KEY', providerName: 'OpenRouter' }),
   },
+  perplexity: {
+    handler: perplexityFetch,
+    models: perplexityModels,
+    fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://api.perplexity.ai/models', apiKeyEnv: 'PERPLEXITY_API_KEY', providerName: 'Perplexity' }),
+  },
+  pollinations: { handler: pollinationsFetch, models: POLLINATIONS_MODELS, fetchModels: fetchPollinationsModels },
   quillbot: { handler: quillbotFetch, models: QUILLBOT_MODELS },
+  togetherai: {
+    handler: togetheraiFetch,
+    models: togetheraiModels,
+    fetchModels: createOpenAiFetchModels({ modelsUrl: 'https://api.together.xyz/v1/models', apiKeyEnv: 'TOGETHER_API_KEY', providerName: 'Together AI' }),
+  },
   vercelgateway: {
     handler: vercelGatewayFetch,
     models: vercelgatewayModels,

@@ -3,9 +3,19 @@ import type { ProviderModel } from "./provider-core";
 import { isProviderEnabled } from "./catalog";
 import { getProviderModels, providerRegistry } from "../providers/registry";
 
+const OPENCLAW_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CatalogCacheEntry = {
+  catalog: OpenClawCatalogModel[];
+  fetchedAt: number;
+};
+
+let catalogCache: CatalogCacheEntry | null = null;
+
 export type OpenClawPresetId = "coding" | "agentic" | "low-cost" | "long-context";
 
 export type OpenClawCatalogModel = {
+  alias?: string;
   capabilities: {
     documents: boolean;
     images: boolean;
@@ -15,6 +25,7 @@ export type OpenClawCatalogModel = {
   contextWindow: number | null;
   id: string;
   latencyTier: "low" | "medium" | "high" | "unknown";
+  maxTokens: number | null;
   modelId: string;
   name: string;
   presets: OpenClawPresetId[];
@@ -99,6 +110,14 @@ function inferPresets(model: OpenClawCatalogModel): OpenClawPresetId[] {
   return [...result];
 }
 
+function deriveAlias(modelName: string): string {
+  const name = modelName.trim();
+  if (!name) return name;
+  const parenIdx = name.indexOf("(");
+  const clean = parenIdx > 0 ? name.slice(0, parenIdx).trim() : name;
+  return clean.length <= 32 ? clean : clean.slice(0, 29) + "...";
+}
+
 function toOpenClawCatalogModel(providerId: string, model: ProviderModel): OpenClawCatalogModel {
   const contextWindow = inferContextWindow(model.id);
   const pricingTier = inferPricingTier(model.id);
@@ -107,6 +126,7 @@ function toOpenClawCatalogModel(providerId: string, model: ProviderModel): OpenC
   const tools = inferToolsCapability(model.id);
 
   const out: OpenClawCatalogModel = {
+    alias: deriveAlias(model.name),
     capabilities: {
       documents: model.capabilities.documents,
       images: model.capabilities.images,
@@ -116,6 +136,7 @@ function toOpenClawCatalogModel(providerId: string, model: ProviderModel): OpenC
     contextWindow,
     id: model.id,
     latencyTier,
+    maxTokens: null,
     modelId: model.id,
     name: model.name,
     pricingTier,
@@ -165,6 +186,11 @@ function recommendationReason(preset: OpenClawPresetId, model: OpenClawCatalogMo
 }
 
 export async function buildOpenClawCatalog(): Promise<OpenClawCatalogModel[]> {
+  const now = Date.now();
+  if (catalogCache && now - catalogCache.fetchedAt < OPENCLAW_CATALOG_CACHE_TTL_MS) {
+    return catalogCache.catalog;
+  }
+
   const enabledProviders = Object.keys(providerRegistry).filter(isProviderEnabled);
   const results = await Promise.allSettled(
     enabledProviders.map(async (providerId) => {
@@ -181,7 +207,9 @@ export async function buildOpenClawCatalog(): Promise<OpenClawCatalogModel[]> {
     }
   }
 
-  return catalog.sort((a, b) => a.unifiedModelId.localeCompare(b.unifiedModelId));
+  const sorted = catalog.sort((a, b) => a.unifiedModelId.localeCompare(b.unifiedModelId));
+  catalogCache = { catalog: sorted, fetchedAt: now };
+  return sorted;
 }
 
 export function buildOpenClawPresetRecommendations(catalog: OpenClawCatalogModel[]): OpenClawPresetRecommendation[] {
@@ -211,4 +239,97 @@ export function summarizeProviderCoverage(catalog: OpenClawCatalogModel[]): {
     modelsByProvider,
     totalModels: catalog.length,
   };
+}
+
+export type OpenClawConfigOutput = {
+  agents: {
+    defaults: {
+      model: {
+        fallbacks: string[];
+        primary: string;
+      };
+      models: Record<string, { alias: string }>;
+    };
+  };
+  models: {
+    mode: string;
+    providers: Record<string, {
+      api: string;
+      apiKey: string;
+      baseUrl: string;
+      models: Array<{
+        alias?: string;
+        contextWindow?: number;
+        id: string;
+        input: string[];
+        maxTokens?: number;
+        name: string;
+        reasoning: boolean;
+      }>;
+    }>;
+  };
+};
+
+export function buildOpenClawConfig(
+  catalog: OpenClawCatalogModel[],
+  presets: OpenClawPresetRecommendation[],
+  baseUrl: string,
+): OpenClawConfigOutput {
+  const modelsList = catalog.map((m) => ({
+    alias: m.alias ?? m.name,
+    contextWindow: m.contextWindow ?? undefined,
+    id: m.unifiedModelId,
+    input: inferModelInput(m),
+    maxTokens: m.maxTokens ?? undefined,
+    name: m.name,
+    reasoning: m.capabilities.reasoning !== "none",
+  }));
+
+  const primaryPreset = presets.find((p) => p.preset === "coding");
+  const primary = primaryPreset?.model ?? (catalog.length > 0 ? catalog[0].unifiedModelId : "modelhub/openai/gpt-4.1-mini");
+
+  const fallbacks: string[] = [];
+  for (const preset of presets) {
+    if (preset.model && preset.model !== primary && !fallbacks.includes(preset.model)) {
+      fallbacks.push(preset.model);
+    }
+  }
+
+  const modelsRecord: Record<string, { alias: string }> = {};
+  for (const m of catalog) {
+    const alias = m.alias ?? deriveAlias(m.name);
+    if (alias) {
+      modelsRecord[m.unifiedModelId] = { alias };
+    }
+  }
+
+  return {
+    agents: {
+      defaults: {
+        model: {
+          fallbacks,
+          primary,
+        },
+        models: modelsRecord,
+      },
+    },
+    models: {
+      mode: "merge",
+      providers: {
+        modelhub: {
+          api: "openai-completions",
+          apiKey: "${MODELHUB_API_KEY}",
+          baseUrl: baseUrl,
+          models: modelsList,
+        },
+      },
+    },
+  };
+}
+
+function inferModelInput(m: OpenClawCatalogModel): string[] {
+  const input = ["text"];
+  if (m.capabilities.images) input.push("image");
+  if (m.capabilities.documents) input.push("document");
+  return input;
 }

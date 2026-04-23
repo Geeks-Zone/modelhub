@@ -1,9 +1,11 @@
 import type { StreamEvent } from "@/lib/contracts";
 
 export type ParsedToolCall = {
+  approvalId?: string;
   args: unknown;
+  requiresApproval?: boolean;
   result?: unknown;
-  status: "running" | "completed";
+  status: "completed" | "pending-approval" | "running";
   toolCallId: string;
   toolName: string;
 };

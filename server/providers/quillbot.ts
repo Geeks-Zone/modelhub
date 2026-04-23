@@ -127,6 +127,14 @@ const app = createProviderApp({
     }
 
     const rawText = await chatResponse.text()
+    const head = rawText.trimStart().toLowerCase()
+    if (head.startsWith('<!doctype') || head.startsWith('<html')) {
+      return upstreamErrorResponse(
+        'Quillbot',
+        502,
+        'Quillbot devolveu HTML em vez do stream esperado (bloqueio, rate limit ou alteração da API).',
+      )
+    }
     return buildQuillbotTextResponse(rawText)
   },
 })

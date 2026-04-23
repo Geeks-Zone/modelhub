@@ -1,32 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CheckIcon,
-  CopyIcon,
-  ExternalLinkIcon,
-  MonitorSmartphoneIcon,
-  TerminalSquareIcon,
-} from "lucide-react";
-import { DEFAULT_MODEL_ID } from "@/lib/defaults";
-import { toast } from "sonner";
-
+import { MonitorSmartphoneIcon, TerminalSquareIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CommandBlock } from "@/components/openclaw/command-block";
+import { OpenClawStepIndicator } from "@/components/openclaw/step-indicator";
+import { useOpenClawCommands } from "@/lib/use-openclaw-commands";
 
-const MODELHUB_BASE_URL = "https://www.modelhub.com.br";
+type WizardStep = "install" | "connect" | "verify" | "sync" | "model";
 
-type WizardStep = "install" | "connect" | "verify" | "model";
-
-type StepDefinition = {
-  description: string;
-  id: WizardStep;
-  label: string;
-};
-
-const STEPS: StepDefinition[] = [
+const STEPS: { description: string; id: WizardStep; label: string }[] = [
   { id: "install", label: "Instalar", description: "Instale o OpenClaw na sua máquina." },
   { id: "connect", label: "Conectar", description: "Copie o comando de setup com sua API key." },
   { id: "verify", label: "Verificar", description: "Valide se tudo está funcionando." },
+  { id: "sync", label: "Sincronizar", description: "Puxe config completo com fallbacks e aliases." },
   { id: "model", label: "Modelo", description: "Escolha o modelo padrão." },
 ];
 
@@ -38,11 +25,7 @@ const installCommands: Record<OsTab, string> = {
   linux: "npm install -g openclaw@latest",
 };
 
-const osLabels: Record<OsTab, string> = {
-  windows: "Windows",
-  macos: "macOS",
-  linux: "Linux",
-};
+const osLabels: Record<OsTab, string> = { windows: "Windows", macos: "macOS", linux: "Linux" };
 
 export function OpenClawWizard({
   apiKey,
@@ -55,25 +38,7 @@ export function OpenClawWizard({
 }) {
   const [activeStep, setActiveStep] = useState<WizardStep>("install");
   const [activeOs, setActiveOs] = useState<OsTab>("macos");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const resolvedKey = apiKey ?? "SUA_API_KEY";
-
-  const connectCommand = `npx @model-hub/openclaw-cli setup --base-url ${MODELHUB_BASE_URL} --api-key ${resolvedKey} --model ${DEFAULT_MODEL_ID}`;
-  const verifyCommand = `npx @model-hub/openclaw-cli doctor --base-url ${MODELHUB_BASE_URL} --api-key ${resolvedKey} --model ${DEFAULT_MODEL_ID}`;
-  const modelCommand = `npx @model-hub/openclaw-cli use ${DEFAULT_MODEL_ID}`;
-
-  function handleCopy(id: string, text: string, successMsg: string) {
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopiedId(id);
-      toast.success(successMsg);
-      setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 2000);
-    }).catch(() => {
-      toast.error("Falha ao copiar.");
-    });
-  }
-
-  const stepIndex = STEPS.findIndex((s) => s.id === activeStep);
+  const commands = useOpenClawCommands(apiKey);
 
   return (
     <div className="space-y-5">
@@ -106,30 +71,7 @@ export function OpenClawWizard({
         </div>
       )}
 
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
-        {STEPS.map((step, idx) => (
-          <button
-            key={step.id}
-            onClick={() => setActiveStep(step.id)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors ${
-              activeStep === step.id
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold ${
-              idx < stepIndex
-                ? "bg-primary/10 text-primary"
-                : activeStep === step.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted-foreground/10 text-muted-foreground"
-            }`}>
-              {idx < stepIndex ? <CheckIcon className="size-3" /> : idx + 1}
-            </span>
-            <span className="hidden sm:inline">{step.label}</span>
-          </button>
-        ))}
-      </div>
+      <OpenClawStepIndicator steps={STEPS} activeStep={activeStep} onStepChange={setActiveStep} />
 
       {activeStep === "install" && (
         <div className="space-y-4">
@@ -146,9 +88,7 @@ export function OpenClawWizard({
                 key={os}
                 onClick={() => setActiveOs(os)}
                 className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  activeOs === os
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                  activeOs === os ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <MonitorSmartphoneIcon className="mr-1 inline size-3" />
@@ -157,31 +97,7 @@ export function OpenClawWizard({
             ))}
           </div>
 
-          <div className="group relative">
-            <pre className="overflow-x-auto rounded-xl bg-muted px-4 py-3 text-xs leading-relaxed">
-              <code>{installCommands[activeOs]}</code>
-            </pre>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={() => handleCopy("install", installCommands[activeOs], "Comando de instalação copiado!")}
-            >
-              {copiedId === "install" ? <CheckIcon className="size-3.5 text-green-500" /> : <CopyIcon className="size-3.5" />}
-            </Button>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={() => handleCopy("install-btn", installCommands[activeOs], "Comando de instalação copiado!")}>
-            {copiedId === "install-btn" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
-            Copiar comando
-          </Button>
-
-          <Button variant="link" size="sm" asChild className="h-auto p-0">
-            <a href="https://www.npmjs.com/package/openclaw" target="_blank" rel="noopener noreferrer">
-              <ExternalLinkIcon className="mr-1 size-3" />
-              Ver pacote no npm
-            </a>
-          </Button>
+          <CommandBlock command={installCommands[activeOs]} copyId="wizard-install" label="Copiar comando" />
         </div>
       )}
 
@@ -194,88 +110,52 @@ export function OpenClawWizard({
               como provider, sincroniza o catálogo e define o modelo recomendado.
             </p>
           </div>
-
-          <div className="group relative">
-            <pre className="overflow-x-auto rounded-xl bg-muted px-4 py-3 text-xs leading-relaxed">
-              <code>{connectCommand}</code>
-            </pre>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={() => handleCopy("connect", connectCommand, "Comando de setup copiado!")}
-            >
-              {copiedId === "connect" ? <CheckIcon className="size-3.5 text-green-500" /> : <CopyIcon className="size-3.5" />}
-            </Button>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={() => handleCopy("connect-btn", connectCommand, "Comando de setup copiado!")}>
-            {copiedId === "connect-btn" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
-            Copiar setup
-          </Button>
+          <CommandBlock command={commands.setup()} copyId="wizard-connect" label="Copiar setup" successMessage="Comando de setup copiado!" />
         </div>
       )}
 
       {activeStep === "verify" && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Passo 3 de 4 — Verifique a integração</p>
+            <p className="text-sm font-medium">Passo 3 de 5 — Verifique a integração</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               Rode o comando <code className="rounded bg-muted px-1 py-0.5">doctor</code> para validar que o OpenClaw
               está conectado ao ModelHub, o catálogo carregou e o endpoint de chat está respondendo.
             </p>
           </div>
+          <CommandBlock command={commands.verify()} copyId="wizard-verify" label="Copiar doctor" successMessage="Comando doctor copiado!" />
+        </div>
+      )}
 
-          <div className="group relative">
-            <pre className="overflow-x-auto rounded-xl bg-muted px-4 py-3 text-xs leading-relaxed">
-              <code>{verifyCommand}</code>
-            </pre>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={() => handleCopy("verify", verifyCommand, "Comando doctor copiado!")}
-            >
-              {copiedId === "verify" ? <CheckIcon className="size-3.5 text-green-500" /> : <CopyIcon className="size-3.5" />}
-            </Button>
+      {activeStep === "sync" && (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Passo 4 de 5 — Sincronize config completo</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              O <code className="rounded bg-muted px-1 py-0.5">sync</code> puxa do servidor o config com
+              <strong>fallbacks</strong> (modelos alternativos), <strong>aliases</strong> (nomes curtos) e
+              <strong>contextWindow</strong>. A API key fica como env var <code className="rounded bg-muted px-1 py-0.5">{"${MODELHUB_API_KEY}"}</code>.
+            </p>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              Certifique-se de exportar <code className="rounded bg-muted px-1 py-0.5">MODELHUB_API_KEY</code> no seu
+              shell para que o OpenClaw resolva a env var no config.
+            </div>
           </div>
-
-          <Button variant="outline" size="sm" onClick={() => handleCopy("verify-btn", verifyCommand, "Comando doctor copiado!")}>
-            {copiedId === "verify-btn" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
-            Copiar doctor
-          </Button>
+          <CommandBlock command={commands.sync()} copyId="wizard-sync" label="Copiar sync" successMessage="Comando sync copiado!" />
         </div>
       )}
 
       {activeStep === "model" && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Passo 4 de 4 — Escolha o modelo padrão</p>
+            <p className="text-sm font-medium">Passo 5 de 5 — Escolha o modelo padrão</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               O setup já define o modelo recomendado automaticamente. Use este comando para trocar
               sempre que quiser. Veja os modelos disponíveis com{" "}
               <code className="rounded bg-muted px-1 py-0.5">npx @model-hub/openclaw-cli models</code>.
             </p>
           </div>
-
-          <div className="group relative">
-            <pre className="overflow-x-auto rounded-xl bg-muted px-4 py-3 text-xs leading-relaxed">
-              <code>{modelCommand}</code>
-            </pre>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={() => handleCopy("model", modelCommand, "Comando copiado!")}
-            >
-              {copiedId === "model" ? <CheckIcon className="size-3.5 text-green-500" /> : <CopyIcon className="size-3.5" />}
-            </Button>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={() => handleCopy("model-btn", modelCommand, "Comando copiado!")}>
-            {copiedId === "model-btn" ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
-            Copiar comando
-          </Button>
+          <CommandBlock command={commands.model} copyId="wizard-model" label="Copiar comando" />
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 {
   "name": "@model-hub/openclaw-cli",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "CLI leve para conectar o OpenClaw ao ModelHub via npx",
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,10 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "keywords": [
     "modelhub",
