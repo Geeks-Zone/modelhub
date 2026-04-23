@@ -1,68 +1,50 @@
 import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
-import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
+
+import {
+  parseFlags,
+  normalizeBaseUrl,
+  normalizeServiceBaseUrl,
+  buildProviderBaseUrl,
+  resolveOpenClawConfigPath,
+  toOpenClawModelRef,
+  toOpenClawProviderModel,
+  buildProviderConfig,
+} from './utils.mjs';
+import {
+  derivePersistedApiKeyValue,
+  resolveCredentials,
+} from './credentials.mjs';
+
+export {
+  parseFlags,
+  normalizeBaseUrl,
+  normalizeServiceBaseUrl,
+  buildProviderBaseUrl,
+  resolveOpenClawConfigPath,
+  toOpenClawModelRef,
+  toOpenClawProviderModel,
+  buildProviderConfig,
+};
 
 const DEFAULT_PROVIDER_ID = 'modelhub';
 const DEFAULT_SERVICE_BASE_URL = 'https://www.modelhub.com.br';
 
-export function parseFlags(args) {
-  const flags = {};
-  const positionals = [];
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index];
-    if (!token.startsWith('--')) {
-      positionals.push(token);
-      continue;
-    }
-
-    const withoutPrefix = token.slice(2);
-    const equalsIndex = withoutPrefix.indexOf('=');
-    if (equalsIndex >= 0) {
-      const key = withoutPrefix.slice(0, equalsIndex);
-      const value = withoutPrefix.slice(equalsIndex + 1);
-      flags[key] = value;
-      continue;
-    }
-
-    const next = args[index + 1];
-    if (!next || next.startsWith('--')) {
-      flags[withoutPrefix] = true;
-      continue;
-    }
-
-    flags[withoutPrefix] = next;
-    index += 1;
+function normalizeBackendModelId(modelRef, providerId = DEFAULT_PROVIDER_ID) {
+  const value = typeof modelRef === 'string' ? modelRef.trim() : '';
+  if (!value) {
+    return '';
   }
 
-  return { flags, positionals };
+  const prefix = `${providerId}/`;
+  return value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }
 
-export function normalizeBaseUrl(input) {
-  return String(input ?? '').trim().replace(/\/+$/, '');
-}
-
-export function normalizeServiceBaseUrl(input) {
-  const normalized = normalizeBaseUrl(input);
-  return normalized.endsWith('/v1') ? normalized.slice(0, -3) : normalized;
-}
-
-export function buildProviderBaseUrl(serviceBaseUrl) {
-  return `${normalizeServiceBaseUrl(serviceBaseUrl)}/v1`;
-}
-
-export function resolveOpenClawConfigPath(env = process.env) {
-  if (env.OPENCLAW_CONFIG_PATH) {
-    return path.resolve(env.OPENCLAW_CONFIG_PATH);
-  }
-
-  if (env.OPENCLAW_STATE_DIR) {
-    return path.join(path.resolve(env.OPENCLAW_STATE_DIR), 'openclaw.json');
-  }
-
-  return path.join(homedir(), '.openclaw', 'openclaw.json');
+function toConfiguredModelRef(providerId, modelRef) {
+  const backendModelId = normalizeBackendModelId(modelRef, providerId);
+  return backendModelId ? toOpenClawModelRef(providerId, backendModelId) : '';
 }
 
 async function fileExists(filePath) {
@@ -125,10 +107,6 @@ function getPrimaryModelRef(config) {
   return typeof primary === 'string' && primary ? primary : null;
 }
 
-export function toOpenClawModelRef(providerId, backendModelId) {
-  return `${providerId}/${backendModelId}`;
-}
-
 export function getSelectedBackendModelId(config, providerId = DEFAULT_PROVIDER_ID) {
   const primary = getPrimaryModelRef(config);
   if (!primary) {
@@ -143,42 +121,25 @@ export function getSelectedBackendModelId(config, providerId = DEFAULT_PROVIDER_
   return primary.slice(prefix.length);
 }
 
-function inferInputTypes(model) {
-  const inputs = ['text'];
-  if (model?.capabilities?.images) {
-    inputs.push('image');
+export function resolveModelHubApiKey(flags, config, providerId = DEFAULT_PROVIDER_ID) {
+  const resolved = resolveCredentials(flags, config, providerId);
+  if (!resolved.apiKey && resolved.apiKeySource === 'config-env-ref') {
+    throw new Error('MODELHUB_API_KEY nao encontrado no ambiente. Exporte MODELHUB_API_KEY ou use --api-key.');
   }
 
-  return inputs;
-}
-
-export function toOpenClawProviderModel(model) {
-  const out = {
-    id: model.unifiedModelId,
-    input: inferInputTypes(model),
-    name: `${model.name} (${model.providerId})`,
-    reasoning: model?.capabilities?.reasoning !== 'none',
-  };
-
-  if (Number.isFinite(model.contextWindow) && model.contextWindow > 0) {
-    out.contextWindow = model.contextWindow;
-  }
-
-  return out;
-}
-
-export function buildProviderConfig({ apiKey, catalog, serviceBaseUrl }) {
   return {
-    api: 'openai-completions',
-    apiKey,
-    baseUrl: buildProviderBaseUrl(serviceBaseUrl),
-    models: catalog.map(toOpenClawProviderModel),
+    ...resolved,
+    persistedApiKeyValue: derivePersistedApiKeyValue({
+      apiKey: resolved.apiKey,
+      apiKeyConfigValue: resolved.apiKeyConfigValue,
+      source: resolved.apiKeySource,
+    }),
   };
 }
 
 export function upsertModelHubIntoOpenClawConfig(
   existingConfig,
-  { apiKey, catalog, providerId = DEFAULT_PROVIDER_ID, selectedModelId, serviceBaseUrl },
+  { apiKey, catalog, providerId = DEFAULT_PROVIDER_ID, selectedModelId, serviceBaseUrl, useEnvVar = false },
 ) {
   const next = structuredClone(existingConfig ?? {});
   const safeProviderId = ensureProviderId(providerId);
@@ -189,7 +150,7 @@ export function upsertModelHubIntoOpenClawConfig(
   next.models.providers ??= {};
   next.models.providers[safeProviderId] = {
     ...existingProvider,
-    ...buildProviderConfig({ apiKey, catalog, serviceBaseUrl }),
+    ...buildProviderConfig({ apiKey, catalog, serviceBaseUrl, useEnvVar }),
   };
 
   next.agents ??= {};
@@ -197,10 +158,24 @@ export function upsertModelHubIntoOpenClawConfig(
 
   const currentModelConfig =
     next.agents.defaults.model && typeof next.agents.defaults.model === 'object' ? next.agents.defaults.model : {};
+  const currentAliases =
+    next.agents.defaults.models && typeof next.agents.defaults.models === 'object' ? next.agents.defaults.models : {};
+
+  const mergedAliases = { ...currentAliases };
+  for (const model of catalog) {
+    if (model.alias && model.alias !== model.name) {
+      mergedAliases[toConfiguredModelRef(safeProviderId, model.unifiedModelId)] = { alias: model.alias };
+    }
+  }
+
   next.agents.defaults.model = {
     ...currentModelConfig,
     primary: toOpenClawModelRef(safeProviderId, selectedModelId),
   };
+
+  if (Object.keys(mergedAliases).length > 0) {
+    next.agents.defaults.models = mergedAliases;
+  }
 
   next.gateway ??= {};
   if (!next.gateway.mode) {
@@ -210,6 +185,145 @@ export function upsertModelHubIntoOpenClawConfig(
   if (!next.gateway.auth) {
     next.gateway.auth = next.gateway.auth || 'none';
   }
+
+  return next;
+}
+
+function normalizeRemoteProviderModels(remoteModels, providerId = DEFAULT_PROVIDER_ID) {
+  if (!Array.isArray(remoteModels)) {
+    return [];
+  }
+
+  const normalized = [];
+  for (const model of remoteModels) {
+    const backendModelId = normalizeBackendModelId(model?.id, providerId);
+    if (!backendModelId) {
+      continue;
+    }
+
+    normalized.push({
+      ...model,
+      id: backendModelId,
+      name: typeof model?.name === 'string' && model.name.trim() ? model.name : backendModelId,
+    });
+  }
+
+  return normalized;
+}
+
+function buildRemoteAliasRecord(remoteModels, remoteAliases, providerId = DEFAULT_PROVIDER_ID) {
+  const nextAliases = {};
+
+  for (const model of remoteModels) {
+    if (typeof model?.alias === 'string' && model.alias.trim() && model.alias !== model.name) {
+      nextAliases[toConfiguredModelRef(providerId, model.id)] = { alias: model.alias };
+    }
+  }
+
+  if (!remoteAliases || typeof remoteAliases !== 'object') {
+    return nextAliases;
+  }
+
+  for (const [modelRef, value] of Object.entries(remoteAliases)) {
+    const backendModelId = normalizeBackendModelId(modelRef, providerId);
+    if (!backendModelId) {
+      continue;
+    }
+
+    const alias =
+      typeof value === 'string'
+        ? value
+        : typeof value?.alias === 'string'
+          ? value.alias
+          : '';
+    if (!alias.trim()) {
+      continue;
+    }
+
+    nextAliases[toConfiguredModelRef(providerId, backendModelId)] = { alias };
+  }
+
+  return nextAliases;
+}
+
+export function buildSyncedOpenClawConfig(
+  existingConfig,
+  remoteConfig,
+  { apiKeyValue, preferredModelId = '', providerId = DEFAULT_PROVIDER_ID, serviceBaseUrl },
+) {
+  const remoteProvider = remoteConfig?.models?.providers?.[providerId];
+  if (!remoteProvider || typeof remoteProvider !== 'object') {
+    throw new Error(`Config remoto invalido: provider "${providerId}" ausente.`);
+  }
+
+  const normalizedModels = normalizeRemoteProviderModels(remoteProvider.models, providerId);
+  if (normalizedModels.length === 0) {
+    throw new Error(`Config remoto invalido: provider "${providerId}" sem modelos.`);
+  }
+
+  const next = structuredClone(existingConfig ?? {});
+  next.models ??= {};
+  next.models.mode =
+    typeof remoteConfig?.models?.mode === 'string' && remoteConfig.models.mode
+      ? remoteConfig.models.mode
+      : next.models.mode ?? 'merge';
+  next.models.providers ??= {};
+
+  const existingProvider = getProviderConfig(next, providerId) ?? {};
+  next.models.providers[providerId] = {
+    ...existingProvider,
+    ...remoteProvider,
+    apiKey: apiKeyValue,
+    baseUrl:
+      typeof remoteProvider.baseUrl === 'string' && remoteProvider.baseUrl.trim()
+        ? remoteProvider.baseUrl
+        : buildProviderBaseUrl(serviceBaseUrl),
+    models: normalizedModels,
+  };
+
+  next.agents ??= {};
+  next.agents.defaults ??= {};
+
+  const currentModelConfig =
+    next.agents.defaults.model && typeof next.agents.defaults.model === 'object' ? next.agents.defaults.model : {};
+  const currentAliases =
+    next.agents.defaults.models && typeof next.agents.defaults.models === 'object' ? next.agents.defaults.models : {};
+  const remoteModelConfig =
+    remoteConfig?.agents?.defaults?.model && typeof remoteConfig.agents.defaults.model === 'object'
+      ? remoteConfig.agents.defaults.model
+      : {};
+
+  const preferredBackendModelId = normalizeBackendModelId(preferredModelId, providerId);
+  const remotePrimaryBackendModelId = normalizeBackendModelId(remoteModelConfig.primary, providerId);
+  const primaryBackendModelId =
+    preferredBackendModelId || remotePrimaryBackendModelId || normalizedModels[0]?.id || '';
+
+  const fallbackModelRefs = Array.isArray(remoteModelConfig.fallbacks)
+    ? [...new Set(
+        remoteModelConfig.fallbacks
+          .map((modelRef) => normalizeBackendModelId(modelRef, providerId))
+          .filter((modelRef) => modelRef && modelRef !== primaryBackendModelId),
+      )].map((modelRef) => toConfiguredModelRef(providerId, modelRef))
+    : [];
+
+  const preservedAliases = Object.fromEntries(
+    Object.entries(currentAliases).filter(([modelRef]) => !modelRef.startsWith(`${providerId}/`)),
+  );
+  const remoteAliases = buildRemoteAliasRecord(
+    normalizedModels,
+    remoteConfig?.agents?.defaults?.models,
+    providerId,
+  );
+
+  next.agents.defaults.model = {
+    ...currentModelConfig,
+    fallbacks: fallbackModelRefs,
+    primary: toConfiguredModelRef(providerId, primaryBackendModelId),
+  };
+  next.agents.defaults.models = {
+    ...preservedAliases,
+    ...remoteAliases,
+  };
 
   return next;
 }
@@ -239,11 +353,6 @@ function resolveServiceBaseUrl(flags, config, providerId, env = process.env) {
     deriveServiceBaseUrlFromConfig(config, providerId) ??
     DEFAULT_SERVICE_BASE_URL;
   return normalizeServiceBaseUrl(value || DEFAULT_SERVICE_BASE_URL);
-}
-
-function resolveApiKey(flags, config, providerId, env = process.env) {
-  const providerConfig = getProviderConfig(config, providerId);
-  return String(flags['api-key'] ?? env.MODELHUB_API_KEY ?? providerConfig?.apiKey ?? '');
 }
 
 async function requestJson(serviceBaseUrl, route, options = {}) {
@@ -314,7 +423,7 @@ async function ensureOpenClawInstalled() {
     execSync('npm install -g openclaw@latest', { stdio: 'inherit' });
     console.log('OpenClaw instalado com sucesso.\n');
     return true;
-  } catch (installError) {
+  } catch {
     console.error('Falha ao instalar o OpenClaw automaticamente.');
     console.error('Instale manualmente com: npm install -g openclaw@latest');
     console.error('Depois rode o setup novamente.');
@@ -338,7 +447,15 @@ async function runSetup(args) {
   const configPath = resolveOpenClawConfigPath(process.env);
   const existingConfig = await loadOpenClawConfig(configPath);
   const serviceBaseUrl = resolveServiceBaseUrl(flags, existingConfig, providerId);
-  const apiKey = resolveApiKey(flags, existingConfig, providerId);
+  let apiKeyContext;
+  try {
+    apiKeyContext = resolveModelHubApiKey(flags, existingConfig, providerId);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+  const apiKey = apiKeyContext.apiKey;
 
   if (authMode !== 'api-key') {
     console.error('Device flow ainda nao esta disponivel no backend atual. Use --auth api-key.');
@@ -383,11 +500,12 @@ async function runSetup(args) {
   }
 
   const nextConfig = upsertModelHubIntoOpenClawConfig(existingConfig, {
-    apiKey,
+    apiKey: apiKeyContext.persistedApiKeyValue,
     catalog: catalogResult.payload.models ?? [],
     providerId,
     selectedModelId,
     serviceBaseUrl,
+    useEnvVar: false,
   });
 
   const backupPath = await backupJsonFile(configPath);
@@ -409,7 +527,15 @@ async function runLogin(args) {
   const configPath = resolveOpenClawConfigPath(process.env);
   const existingConfig = await loadOpenClawConfig(configPath);
   const serviceBaseUrl = resolveServiceBaseUrl(flags, existingConfig, providerId);
-  const apiKey = resolveApiKey(flags, existingConfig, providerId);
+  let apiKeyContext;
+  try {
+    apiKeyContext = resolveModelHubApiKey(flags, existingConfig, providerId);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+  const apiKey = apiKeyContext.apiKey;
 
   if (authMode !== 'api-key') {
     console.error('Device flow planejado, mas ainda nao disponivel neste backend.');
@@ -440,11 +566,12 @@ async function runLogin(args) {
   }
 
   const nextConfig = upsertModelHubIntoOpenClawConfig(existingConfig, {
-    apiKey,
+    apiKey: apiKeyContext.persistedApiKeyValue,
     catalog: Array.isArray(catalogResult.payload?.models) ? catalogResult.payload.models : [],
     providerId,
     selectedModelId,
     serviceBaseUrl,
+    useEnvVar: false,
   });
 
   const backupPath = await backupJsonFile(configPath);
@@ -461,7 +588,15 @@ async function runModels(args) {
   const configPath = resolveOpenClawConfigPath(process.env);
   const existingConfig = await loadOpenClawConfig(configPath);
   const serviceBaseUrl = resolveServiceBaseUrl(flags, existingConfig, providerId);
-  const apiKey = resolveApiKey(flags, existingConfig, providerId);
+  let apiKeyContext;
+  try {
+    apiKeyContext = resolveModelHubApiKey(flags, existingConfig, providerId);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+  const apiKey = apiKeyContext.apiKey;
 
   if (!apiKey) {
     console.error('API key ausente. Execute `setup` ou `login` primeiro.');
@@ -480,6 +615,67 @@ async function runModels(args) {
     const modelRef = toOpenClawModelRef(providerId, model.unifiedModelId);
     console.log(`${modelRef}  [${(model.presets ?? []).join(', ')}]`);
   }
+}
+
+async function runSync(args) {
+  const { flags } = parseFlags(args);
+  const providerId = ensureProviderId(flags['provider-id'] || DEFAULT_PROVIDER_ID);
+  const configPath = resolveOpenClawConfigPath(process.env);
+  const existingConfig = await loadOpenClawConfig(configPath);
+  const serviceBaseUrl = resolveServiceBaseUrl(flags, existingConfig, providerId);
+  let apiKeyContext;
+  try {
+    apiKeyContext = resolveModelHubApiKey(flags, existingConfig, providerId);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+  const apiKey = apiKeyContext.apiKey;
+
+  if (!apiKey) {
+    console.error('API key ausente. Use --api-key ou MODELHUB_API_KEY.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const configResult = await requestJson(serviceBaseUrl, '/openclaw/config', { apiKey });
+  if (!configResult.ok) {
+    console.error(`Falha ao obter config (${configResult.status}).`, configResult.payload?.error ?? '');
+    process.exitCode = 1;
+    return;
+  }
+
+  const remoteConfig = configResult.payload;
+  const currentModelId = getSelectedBackendModelId(existingConfig, providerId);
+  let nextConfig;
+  try {
+    nextConfig = buildSyncedOpenClawConfig(existingConfig, remoteConfig, {
+      apiKeyValue: apiKeyContext.persistedApiKeyValue,
+      preferredModelId: flags.model || currentModelId || '',
+      providerId,
+      serviceBaseUrl,
+    });
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+
+  const backupPath = await backupJsonFile(configPath);
+  await writeJsonFile(configPath, nextConfig);
+
+  const modelCount = Array.isArray(nextConfig.models?.providers?.[providerId]?.models)
+    ? nextConfig.models.providers[providerId].models.length
+    : 0;
+  console.log(`Config sincronizado com ${modelCount} modelos, fallbacks e aliases.`);
+  console.log(`Modelo primario: ${nextConfig.agents.defaults.model?.primary ?? 'nenhum'}`);
+  if (nextConfig.agents.defaults.model?.fallbacks?.length) {
+    console.log(`Fallbacks: ${nextConfig.agents.defaults.model.fallbacks.join(', ')}`);
+  }
+  console.log(`Config: ${configPath}`);
+  console.log(`Backup: ${backupPath ?? 'nenhum (arquivo novo)'}`);
+  console.log(`\nDica: export MODELHUB_API_KEY=${apiKeyContext.persistedApiKeyValue === '${MODELHUB_API_KEY}' ? 'sua_key_aqui' : '***'} para que o OpenClaw resolva a env var.`);
 }
 
 async function runUse(args) {
@@ -532,7 +728,15 @@ async function runDoctor(args) {
   const config = configExists ? await loadOpenClawConfig(configPath) : {};
   const providerConfig = getProviderConfig(config, providerId);
   const serviceBaseUrl = resolveServiceBaseUrl(flags, config, providerId);
-  const apiKey = resolveApiKey(flags, config, providerId);
+  let apiKeyContext;
+  try {
+    apiKeyContext = resolveModelHubApiKey(flags, config, providerId);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+  const apiKey = apiKeyContext.apiKey;
   const backendModelId = String(flags.model || getSelectedBackendModelId(config, providerId) || '');
   const modelRef = backendModelId ? toOpenClawModelRef(providerId, backendModelId) : null;
 
@@ -615,18 +819,41 @@ function printStandaloneHelp() {
   console.log(`ModelHub OpenClaw CLI
 
 Uso:
+  npx @model-hub/openclaw-cli run [--api-key KEY] [--base-url URL] [--verbose] [--debug]
   npx @model-hub/openclaw-cli setup [--base-url URL] [--api-key KEY] [--model MODEL] [--provider-id ID]
+  npx @model-hub/openclaw-cli sync [--base-url URL] [--api-key KEY] [--provider-id ID]
   npx @model-hub/openclaw-cli login [--base-url URL] [--api-key KEY] [--provider-id ID]
   npx @model-hub/openclaw-cli models [--base-url URL] [--api-key KEY] [--provider-id ID]
   npx @model-hub/openclaw-cli use <model-id> [--provider-id ID]
   npx @model-hub/openclaw-cli doctor [--base-url URL] [--api-key KEY] [--model MODEL] [--provider-id ID]
   npx @model-hub/openclaw-cli install
 
+Comandos:
+  run       Inicia o bridge local (comando principal, recomendado)
+  setup     Configura o OpenClaw para usar o ModelHub (avancado)
+  sync      Sincroniza config com fallbacks e aliases do servidor
+  bridge    Alias para "run" (compatibilidade)
+  login     Re-valida auth e atualiza catalogo
+  models    Lista modelos disponiveis
+  use       Troca o modelo primario
+  doctor    Verifica saude da integracao
+  install   Instala o OpenClaw (se nao estiver instalado)
+
+Opcoes do "run":
+  --api-key KEY         API Key do ModelHub (ou usar env/config)
+  --base-url URL        URL do ModelHub (default: https://www.modelhub.com.br)
+  --bridge-port PORT    Porta do bridge (default: 18790)
+  --gateway-port PORT   Porta do gateway (default: 18789)
+  --openclaw-bin PATH   Caminho do binario openclaw
+  --verbose             Mostra progresso detalhado
+  --debug               Mostra tudo (frames WS, etc.)
+
 Observacoes:
-  - O comando install verifica se o OpenClaw esta instalado e instala automaticamente se necessario
-  - O OpenClaw sera configurado no arquivo ~/.openclaw/openclaw.json
-  - O provider customizado usa base URL <SEU_MODELHUB>/v1
-  - O model ref final no OpenClaw fica no formato modelhub/<provider/model-id>`);
+  - O comando "run" e o fluxo oficial. Ele diagnostica, instala, configura
+    e inicia tudo automaticamente.
+  - Se nao houver credenciais, o CLI pede a API Key no terminal (uma vez).
+  - O browser detecta o bridge automaticamente em http://127.0.0.1:18790
+  - O OpenClaw e configurado em ~/.openclaw/openclaw.json`);
 }
 
 function printLegacyHelp() {
@@ -634,6 +861,7 @@ function printLegacyHelp() {
 
 Uso:
   modelhub openclaw setup [--base-url URL] [--api-key KEY] [--model MODEL] [--provider-id ID]
+  modelhub openclaw sync [--base-url URL] [--api-key KEY] [--provider-id ID]
   modelhub openclaw login [--base-url URL] [--api-key KEY] [--provider-id ID]
   modelhub openclaw models [--base-url URL] [--api-key KEY] [--provider-id ID]
   modelhub openclaw use <model-id> [--provider-id ID]
@@ -646,6 +874,12 @@ Dica:
 }
 
 async function dispatchCommand(command, args) {
+  if (command === 'run' || command === 'bridge') {
+    const { run } = await import('./run.mjs');
+    await run(args);
+    return;
+  }
+
   if (command === 'setup') {
     await runSetup(args);
     return;
@@ -663,6 +897,11 @@ async function dispatchCommand(command, args) {
 
   if (command === 'use') {
     await runUse(args);
+    return;
+  }
+
+  if (command === 'sync') {
+    await runSync(args);
     return;
   }
 
@@ -715,4 +954,3 @@ export async function runLegacyModelHubCli(argv = process.argv.slice(2)) {
 
   await dispatchCommand(subCommand, argv.slice(2));
 }
-

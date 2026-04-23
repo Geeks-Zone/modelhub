@@ -66,11 +66,19 @@ type RawMessagePart = {
   image_url?: { url?: string; detail?: string }
 }
 
+/** Entrada bruta (OpenAI/OpenClaw): tool_calls podem vir sem id ou com arguments como objeto. */
+type RawIncomingToolCall = {
+  id?: string
+  type?: 'function'
+  function?: { name?: string; arguments?: string | Record<string, unknown> | unknown[] }
+}
+
 type RawChatMessage = {
-  role?: 'user' | 'assistant' | 'system' | 'tool'
-  content?: string | RawMessagePart[]
+  /** Qualquer string compatível com OpenAI/Claude/OpenClaw; normalizamos em normalizeMessages. */
+  role?: string
+  content?: string | RawMessagePart[] | null
   parts?: RawMessagePart[]
-  tool_calls?: ChatMessageToolCall[]
+  tool_calls?: RawIncomingToolCall[]
   tool_call_id?: string
   name?: string
 }
@@ -111,7 +119,8 @@ type UserMemoryRecord = {
   content: string
 }
 
-const MAX_MESSAGES = 50
+/** Agentes (OpenClaw, etc.) podem enviar histórico longo com várias tool rounds — 50 era pouco. */
+const MAX_MESSAGES = 256
 const MAX_PARTS_PER_MESSAGE = 64
 const MAX_MESSAGE_TEXT_LENGTH = 20_000
 export const MAX_PROVIDER_REQUEST_BODY_BYTES = 4 * 1024 * 1024
@@ -121,36 +130,56 @@ const rawMessagePartSchema = z
   .object({
     attachmentId: z.string().max(256).optional(),
     fileName: z.string().max(512).optional(),
-    kind: z.enum(['image', 'document']).optional(),
+    kind: z.string().max(64).optional(),
     mimeType: z.string().max(256).optional(),
     type: z.string().max(64).optional(),
-    text: z.string().max(MAX_MESSAGE_TEXT_LENGTH).optional(),
+    text: z
+      .union([z.string().max(MAX_MESSAGE_TEXT_LENGTH), z.null()])
+      .optional()
+      .transform((v) => (v === null ? undefined : v)),
     image_url: z
       .object({
-        url: z.string().max(MAX_PROVIDER_IMAGE_URL_LENGTH).optional(),
-        detail: z.string().max(32).optional(),
+        url: z
+          .union([z.string().max(MAX_PROVIDER_IMAGE_URL_LENGTH), z.null()])
+          .optional()
+          .transform((v) => (v === null ? undefined : v)),
+        detail: z
+          .union([z.string().max(32), z.null()])
+          .optional()
+          .transform((v) => (v === null ? undefined : v)),
       })
       .passthrough()
       .optional(),
   })
   .passthrough()
 
+/** OpenAI e clientes (ex.: OpenClaw) podem enviar arguments como string JSON ou objeto. */
 const toolCallFunctionSchema = z.object({
   name: z.string().max(256),
-  arguments: z.string().max(MAX_MESSAGE_TEXT_LENGTH),
+  arguments: z
+    .union([z.string().max(MAX_MESSAGE_TEXT_LENGTH), z.record(z.string(), z.unknown()), z.array(z.unknown())])
+    .transform((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
+    .pipe(z.string().max(MAX_MESSAGE_TEXT_LENGTH * 2)),
 })
 
-const toolCallSchema = z.object({
-  id: z.string().max(256),
-  type: z.literal('function'),
-  function: toolCallFunctionSchema,
-})
+const toolCallSchema = z
+  .object({
+    id: z.string().max(256).optional(),
+    /** Alguns clientes omitem; assumimos function. */
+    type: z.literal('function').optional(),
+    function: toolCallFunctionSchema,
+  })
+  .passthrough()
 
 const rawChatMessageSchema = z
   .object({
-    role: z.enum(['user', 'assistant', 'system', 'tool']).optional(),
+    role: z.string().max(64).optional(),
     content: z
-      .union([z.string().max(MAX_MESSAGE_TEXT_LENGTH), z.array(rawMessagePartSchema).max(MAX_PARTS_PER_MESSAGE)])
+      .union([
+        z.string().max(MAX_MESSAGE_TEXT_LENGTH),
+        z.array(rawMessagePartSchema).max(MAX_PARTS_PER_MESSAGE),
+        z.null(),
+      ])
       .optional(),
     parts: z.array(rawMessagePartSchema).max(MAX_PARTS_PER_MESSAGE).optional(),
     tool_calls: z.array(toolCallSchema).max(64).optional(),
@@ -231,8 +260,14 @@ function normalizeMessages(input: RawChatMessage[]): ChatInputMessage[] {
 
   const out: ChatInputMessage[] = []
   for (const item of input) {
-    const role: ChatInputMessage['role'] =
-      item.role === 'assistant' || item.role === 'system' || item.role === 'tool' ? item.role : 'user'
+    let role: ChatInputMessage['role'] = 'user'
+    if (item.role === 'assistant' || item.role === 'system' || item.role === 'tool') {
+      role = item.role
+    } else if (item.role === 'developer') {
+      role = 'system'
+    } else if (item.role === 'function') {
+      role = 'tool'
+    }
 
     let content: string | ChatInputContentPart[] = ''
 
@@ -241,7 +276,11 @@ function normalizeMessages(input: RawChatMessage[]): ChatInputMessage[] {
     } else if (Array.isArray(item.content)) {
       const parts = normalizeContentParts(item.content)
       content = parts.length > 0 ? parts : ''
-    } else if (Array.isArray(item.parts)) {
+    } else if (item.content === null || item.content === undefined) {
+      content = ''
+    }
+
+    if (content === '' && Array.isArray(item.parts)) {
       const parts = normalizeContentParts(item.parts)
       content = parts.length > 0 ? parts : ''
     }
@@ -249,7 +288,18 @@ function normalizeMessages(input: RawChatMessage[]): ChatInputMessage[] {
     const msg: ChatInputMessage = { role, content }
 
     if (item.tool_calls && Array.isArray(item.tool_calls) && item.tool_calls.length > 0) {
-      msg.tool_calls = item.tool_calls
+      msg.tool_calls = item.tool_calls.map((tc, i) => {
+        const id = typeof tc.id === 'string' && tc.id.length > 0 ? tc.id : `tool_${i}`
+        const name = typeof tc.function?.name === 'string' ? tc.function.name : ''
+        const args = tc.function?.arguments
+        const argumentsStr =
+          typeof args === 'string' ? args : args !== undefined ? JSON.stringify(args) : '{}'
+        return {
+          id,
+          type: 'function' as const,
+          function: { name, arguments: argumentsStr },
+        }
+      })
     }
     if (typeof item.tool_call_id === 'string' && item.tool_call_id) {
       msg.tool_call_id = item.tool_call_id
@@ -1138,7 +1188,19 @@ export function createProviderApp(config: ProviderConfig) {
 
       const parsedBody = providerChatBodySchema.safeParse(rawJson)
       if (!parsedBody.success) {
-        return jsonErrorResponse(400, 'Invalid chat request payload')
+        const zodIssues = parsedBody.error.issues
+        // Clientes (ex.: OpenClaw) muitas vezes só mostram error.message; o Zod guarda a causa em issues.
+        console.error('[modelhub] providerChatBodySchema failed', {
+          providerId: config.providerId,
+          issueCount: zodIssues.length,
+          issues: zodIssues.slice(0, 32),
+        })
+        const issues = zodIssues.slice(0, 12).map((i) => ({
+          path: i.path.map(String).join('.') || '(root)',
+          message: i.message,
+          code: i.code,
+        }))
+        return jsonErrorResponse(400, 'Invalid chat request payload', { issues })
       }
 
       const rawBody = parsedBody.data as Record<string, unknown>

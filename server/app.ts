@@ -4,6 +4,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 import { zValidator } from "@hono/zod-validator";
+import { HTTPException } from "hono/http-exception";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -20,6 +21,7 @@ import {
 import { prisma } from "./lib/db";
 import {
   buildOpenClawCatalog,
+  buildOpenClawConfig,
   buildOpenClawPresetRecommendations,
   summarizeProviderCoverage,
 } from "./lib/openclaw";
@@ -141,6 +143,23 @@ function sanitizeProxyResponseHeaders(responseHeaders: Headers): Headers {
 
 export function createApiApp() {
   const app = new Hono<ApiAppEnv>();
+
+  /** Evita que falhas não tratadas cheguem ao Next.js como página HTML 500 (clientes OpenAI esperam JSON). */
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) {
+      return err.getResponse();
+    }
+    console.error("[api] unhandled error:", err);
+    return c.json(
+      {
+        error: {
+          message: err instanceof Error ? err.message : "Internal server error",
+        },
+      },
+      500,
+    );
+  });
+
   app.use("*", securityHeaders);
   app.use(async (c, next) => {
     const startedAt = Date.now();
@@ -312,6 +331,21 @@ auth: {
       status: checks.every((check) => check.ok) ? "ok" : "degraded",
       timestamp: Date.now(),
     });
+  });
+
+  app.get("/openclaw/config", async (c) => {
+    const accessError = await ensureProtectedAccess(c);
+    if (accessError) {
+      return accessError;
+    }
+
+    const url = new URL(c.req.url);
+    const baseUrl = `${url.origin}/v1`;
+    const catalog = await buildOpenClawCatalog();
+    const presets = buildOpenClawPresetRecommendations(catalog);
+    const config = buildOpenClawConfig(catalog, presets, baseUrl);
+
+    return c.json(config);
   });
 
   app.use("/user/*", async (c) => await userFetch(c.req.raw));
