@@ -7,12 +7,16 @@
 
 import "../env";
 
-import { randomBytes, createCipheriv, createDecipheriv, createHash } from "node:crypto";
+import { randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from "node:crypto";
 
 // ─── Configurações ──────────────────────────────────────────────────
 
 const AES_ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
+const API_KEY_KDF_DIGEST = "sha256";
+const API_KEY_KDF_ITERATIONS = 210_000;
+const API_KEY_SALT_BYTES = 16;
+const API_KEY_DERIVED_KEY_BYTES = 32;
 
 /** Chave mestra para encriptar credenciais. DEVE ser definida em produção. */
 function getEncryptionKey(): Buffer {
@@ -64,13 +68,21 @@ export function decryptCredential(stored: string): string {
 /** Gera uma API Key raw e retorna { raw, hash, prefix } */
 export function generateApiKey(): { raw: string; hash: string; prefix: string } {
   const raw = `sk-${randomBytes(32).toString("hex")}`;
-  const hash = createHash("sha256").update(raw).digest("hex");
+  const hash = hashApiKey(raw);
   const prefix = raw.slice(0, 11); // "sk-" + 8 chars
   return { raw, hash, prefix };
 }
 
-/** Faz hash SHA-256 de uma API key para lookup */
+/** Faz hash PBKDF2 de uma API key para armazenamento/lookup */
 export function hashApiKey(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex");
+  const salt = randomBytes(API_KEY_SALT_BYTES);
+  const derived = pbkdf2Sync(
+    raw,
+    salt,
+    API_KEY_KDF_ITERATIONS,
+    API_KEY_DERIVED_KEY_BYTES,
+    API_KEY_KDF_DIGEST
+  );
+  return `pbkdf2_${API_KEY_KDF_DIGEST}$${API_KEY_KDF_ITERATIONS}$${salt.toString("hex")}$${derived.toString("hex")}`;
 }
 
