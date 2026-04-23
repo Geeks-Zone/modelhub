@@ -117,7 +117,7 @@ function extractTaggedText(xml: string, tagName: string): string[] {
   const values: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(xml)) !== null) {
-    const value = decodeXmlEntities(match[1].replace(/<[^>]+>/g, ""));
+    const value = decodeXmlEntities(match[1].replace(/[<>]/g, ""));
     if (value.trim()) {
       values.push(value.trim());
     }
