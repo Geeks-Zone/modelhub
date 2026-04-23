@@ -78,6 +78,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { apiFetch, apiJson, apiJsonRequest, testProviderCredentials } from "@/lib/api";
 import {
+  isBridgeConnectionError,
   loadOpenClawBridgeSessionKey,
   OpenClawBridgeClient,
   type OpenClawBridgeEvent,
@@ -359,15 +360,11 @@ export function ChatPage() {
 
   const getBridgeClient = useCallback(async () => {
     const baseUrl = normalizeGatewayBaseUrl(openclaw.bridgeSettings.baseUrl);
-    const currentClient = bridgeClientRef.current;
-    if (!currentClient || currentClient.baseUrl !== baseUrl) {
-      currentClient?.disconnect();
-      bridgeClientRef.current = new OpenClawBridgeClient(baseUrl);
-    }
-
-    const client = bridgeClientRef.current;
-    if (!client) {
-      throw new Error("Bridge client unavailable.");
+    let client = bridgeClientRef.current;
+    if (!client || client.baseUrl !== baseUrl) {
+      client?.disconnect();
+      client = new OpenClawBridgeClient(baseUrl);
+      bridgeClientRef.current = client;
     }
     await client.connect();
     return client;
@@ -418,11 +415,25 @@ export function ChatPage() {
   }, []);
 
   useEffect(() => {
+    const isOpenClawBridgeActive =
+      selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge";
+    const baseUrl = openclaw.bridgeSettings.baseUrl.trim();
+
     bridgeClientRef.current?.disconnect();
     bridgeClientRef.current = null;
     bridgeRunRef.current = null;
     setBridgeFallbackMode(false);
-  }, [openclaw.bridgeSettings.baseUrl]);
+
+    if (!isOpenClawBridgeActive || !baseUrl) {
+      return;
+    }
+
+    const client = new OpenClawBridgeClient(normalizeGatewayBaseUrl(baseUrl));
+    bridgeClientRef.current = client;
+    void client.connect().catch(() => {
+      // erros de conexão são reportados no envio/fluxo; aqui apenas garantimos que não propagam
+    });
+  }, [selectedProviderId, openclaw.mode, openclaw.bridgeSettings.baseUrl]);
 
   // Smart auto-scroll: scroll to bottom only if user hasn't scrolled up
   useEffect(() => {
@@ -1150,6 +1161,9 @@ export function ChatPage() {
           });
           setBridgeFallbackMode(false);
         } catch (bridgeError) {
+          if (!isBridgeConnectionError(bridgeError)) {
+            throw bridgeError;
+          }
           setMessages((current) =>
             current.map((message) =>
               message.id === assistantMessageId
