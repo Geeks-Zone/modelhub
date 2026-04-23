@@ -95,6 +95,20 @@ function buildBridgeWebSocketUrl(baseUrl: string): string {
   return url.toString();
 }
 
+const BRIDGE_CONNECTION_ERROR_MESSAGES = [
+  "Bridge WS connection failed",
+  "Bridge WS disconnected",
+  "Bridge WS connection timed out",
+  "Bridge WS not connected",
+];
+
+export function isBridgeConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return BRIDGE_CONNECTION_ERROR_MESSAGES.some((prefix) => error.message.startsWith(prefix));
+}
+
 export function loadOpenClawBridgeSessionKey(conversationId: string): string {
   if (typeof window === "undefined" || !conversationId) {
     return "";
@@ -291,12 +305,21 @@ export class OpenClawBridgeClient {
     }
 
     const pending = this.#pendingRequests.get(requestId);
-    if (!pending || !pending.types.has(event.type)) {
+    if (!pending) {
       return;
     }
 
-    this.#pendingRequests.delete(requestId);
-    pending.resolve(event);
+    if (pending.types.has(event.type)) {
+      this.#pendingRequests.delete(requestId);
+      pending.resolve(event);
+      return;
+    }
+
+    if (event.type === "run.error") {
+      this.#pendingRequests.delete(requestId);
+      const message = "error" in event && event.error ? event.error : "bridge run.error";
+      pending.reject(new Error(message));
+    }
   }
 
   #failPendingRequests(error: Error) {
