@@ -325,6 +325,10 @@ export function ChatPage() {
     selectedProviderId === OPENCLAW_PROVIDER_ID
       ? openclaw.isOpenClawReady
       : providerHasRequiredCredentials(selectedProvider, credentials);
+  const openClawDashboardUrl =
+    selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "gateway"
+      ? buildOpenClawDashboardUrl(openclaw.gatewaySettings)
+      : null;
 
   /** Check discreto no dropdown: só OpenClaw/bridge e provedores com chave, quando já configurados. */
   const providerModels = useProviderModels({
@@ -1692,22 +1696,16 @@ export function ChatPage() {
             </Select>
           )}
 
-          {selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "gateway" && buildOpenClawDashboardUrl(openclaw.gatewaySettings) ? (
+          {openClawDashboardUrl ? (
             <Button
-              asChild
               variant="ghost"
               size="sm"
               className="h-8 shrink-0 text-xs"
+              onClick={() => window.open(openClawDashboardUrl, "_blank", "noopener,noreferrer")}
               title="Abre o painel oficial do OpenClaw (WebSocket / chat nativo) com o mesmo token — numa nova aba"
             >
-              <a
-                href={buildOpenClawDashboardUrl(openclaw.gatewaySettings) ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLinkIcon className="size-3.5" />
-                <span className="hidden sm:inline">Painel OpenClaw</span>
-              </a>
+              <ExternalLinkIcon className="size-3.5" />
+              <span className="hidden sm:inline">Painel OpenClaw</span>
             </Button>
           ) : null}
 

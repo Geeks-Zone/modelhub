@@ -2,6 +2,9 @@ import { normalizeGatewayBaseUrl } from "@/lib/openclaw-gateway";
 import { assertLoopbackGatewayBaseUrl } from "@/lib/openclaw-loopback";
 import { parseOpenClawProxyBody } from "@/lib/openclaw-proxy-body";
 
+const INVALID_GATEWAY_BASE_MESSAGE = "URL base do gateway inválida ou não permitida.";
+const GATEWAY_REQUEST_FAILED_MESSAGE = "Não foi possível contactar o gateway OpenClaw.";
+
 export async function POST(request: Request) {
   const { body, error: parseError } = await parseOpenClawProxyBody(request);
   if (parseError) return parseError;
@@ -18,9 +21,8 @@ export async function POST(request: Request) {
   let base: string;
   try {
     base = normalizeGatewayBaseUrl(assertLoopbackGatewayBaseUrl(baseUrl));
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return new Response(JSON.stringify({ error: { message: msg } }), {
+  } catch {
+    return new Response(JSON.stringify({ error: { message: INVALID_GATEWAY_BASE_MESSAGE } }), {
       headers: { "Content-Type": "application/json" },
       status: 400,
     });
@@ -44,8 +46,8 @@ export async function POST(request: Request) {
       status: upstream.status,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return new Response(JSON.stringify({ error: { message } }), {
+    console.error("OpenClaw chat completion proxy failed:", error);
+    return new Response(JSON.stringify({ error: { message: GATEWAY_REQUEST_FAILED_MESSAGE } }), {
       headers: { "Content-Type": "application/json" },
       status: 502,
     });

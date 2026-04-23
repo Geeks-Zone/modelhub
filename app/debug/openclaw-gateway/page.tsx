@@ -42,6 +42,12 @@ export default function DebugOpenclawGatewayPage() {
   }
 
   const dashboardUrl = buildOpenClawDashboardUrl({ baseUrl: baseUrl.trim(), token: token.trim() });
+  const openDashboard = () => {
+    if (!dashboardUrl) {
+      return;
+    }
+    window.open(dashboardUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="mx-auto min-h-svh max-w-lg px-4 py-10">
@@ -83,11 +89,9 @@ export default function DebugOpenclawGatewayPage() {
           </Button>
 
           {dashboardUrl ? (
-            <Button asChild className="w-full gap-2" type="button" variant="outline">
-              <a href={dashboardUrl} rel="noopener noreferrer" target="_blank">
-                <ExternalLinkIcon className="size-4" />
-                Abrir painel OpenClaw (chat nativo)
-              </a>
+            <Button className="w-full gap-2" type="button" variant="outline" onClick={openDashboard}>
+              <ExternalLinkIcon className="size-4" />
+              Abrir painel OpenClaw (chat nativo)
             </Button>
           ) : null}
 

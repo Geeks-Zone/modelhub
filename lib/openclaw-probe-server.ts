@@ -8,6 +8,9 @@ import {
 } from "@/lib/openclaw-gateway";
 import { assertLoopbackGatewayBaseUrl } from "@/lib/openclaw-loopback";
 
+const INVALID_GATEWAY_BASE_MESSAGE = "URL base do gateway inválida ou não permitida.";
+const GATEWAY_REQUEST_FAILED_MESSAGE = "Não foi possível contactar o gateway OpenClaw.";
+
 function diagnosticOpenClawCompatDisabled(): OpenClawGatewayDiagnostic {
   return {
     codeBlocks: [
@@ -134,8 +137,7 @@ openclaw gateway --port 18789`,
   let baseDisplay: string;
   try {
     baseDisplay = assertLoopbackGatewayBaseUrl(input.baseUrl);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+  } catch {
     return {
       diagnostic: {
         codeBlocks: [
@@ -147,7 +149,7 @@ http://[::1]:18789`,
           },
         ],
         steps: [`Ajuste o URL base do gateway (apenas 127.0.0.1, localhost ou ::1).`],
-        summary: msg,
+        summary: INVALID_GATEWAY_BASE_MESSAGE,
       },
       ok: false,
     };
@@ -180,7 +182,8 @@ http://[::1]:18789`,
 
     return { ok: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    console.error("OpenClaw probe failed:", error);
+    const message = error instanceof Error ? error.message : "";
     const lower = message.toLowerCase();
     if (
       lower.includes("econnrefused") ||
@@ -194,7 +197,7 @@ http://[::1]:18789`,
     return {
       diagnostic: {
         steps: [diagnosticRemoteServerCannotReachGateway(baseDisplay).steps[1] ?? ""].filter(Boolean),
-        summary: `Erro ao contactar o gateway: ${message}`,
+        summary: GATEWAY_REQUEST_FAILED_MESSAGE,
       },
       ok: false,
     };
@@ -206,9 +209,8 @@ export async function fetchOpenClawGatewayModelsFromServer(settings: OpenClawGat
   let baseDisplay: string;
   try {
     baseDisplay = assertLoopbackGatewayBaseUrl(settings.baseUrl);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return new Response(JSON.stringify({ error: msg }), {
+  } catch {
+    return new Response(JSON.stringify({ error: INVALID_GATEWAY_BASE_MESSAGE }), {
       headers: { "Content-Type": "application/json" },
       status: 400,
     });
@@ -251,8 +253,8 @@ export async function fetchOpenClawGatewayModelsFromServer(settings: OpenClawGat
       status: 200,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return new Response(JSON.stringify({ error: message }), {
+    console.error("OpenClaw model fetch failed:", error);
+    return new Response(JSON.stringify({ error: GATEWAY_REQUEST_FAILED_MESSAGE }), {
       headers: { "Content-Type": "application/json" },
       status: 502,
     });

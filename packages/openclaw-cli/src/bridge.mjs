@@ -12,6 +12,8 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
 ];
+const BRIDGE_REQUEST_FAILED_MESSAGE = 'Bridge request failed';
+const BRIDGE_PROXY_FAILED_MESSAGE = 'Proxy error';
 
 function corsHeaders(origin) {
   const headers = {
@@ -709,7 +711,7 @@ export async function runBridge(args) {
         } catch (proxyErr) {
           console.error(`[bridge] REST proxy error: ${proxyErr.message}`);
           if (!res.headersSent) {
-            jsonResponse(res, { error: `Proxy error: ${proxyErr.message}` }, 502, origin);
+            jsonResponse(res, { error: BRIDGE_PROXY_FAILED_MESSAGE }, 502, origin);
           }
         }
         return;
@@ -719,7 +721,7 @@ export async function runBridge(args) {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[bridge] Error: ${message}`);
-      jsonResponse(res, { error: message }, 502, origin);
+      jsonResponse(res, { error: BRIDGE_REQUEST_FAILED_MESSAGE }, 502, origin);
     }
   });
 

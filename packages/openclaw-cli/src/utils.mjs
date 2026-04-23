@@ -1,6 +1,14 @@
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+function trimTrailingSlashes(value) {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
 export function parseFlags(args) {
   const flags = {};
   const positionals = [];
@@ -35,7 +43,7 @@ export function parseFlags(args) {
 }
 
 export function normalizeBaseUrl(input) {
-  return String(input ?? '').trim().replace(/\/+$/, '');
+  return trimTrailingSlashes(String(input ?? '').trim());
 }
 
 export function normalizeServiceBaseUrl(input) {

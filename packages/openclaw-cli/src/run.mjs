@@ -34,6 +34,7 @@ const ALLOWED_HTTP_ORIGINS = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
 ];
+const BRIDGE_REQUEST_FAILED_MESSAGE = 'Bridge request failed';
 
 function corsHeaders(origin) {
   const headers = {
@@ -442,7 +443,8 @@ export async function run(args) {
         paths: ['/api/status', '/api/models', '/api/model', '/api/config/model', '/v1/models', '/v1/chat/completions'],
       }, 404, origin);
     } catch (error) {
-      jsonResponse(res, { error: error instanceof Error ? error.message : String(error) }, 502, origin);
+      log.error('[bridge] request failed', error);
+      jsonResponse(res, { error: BRIDGE_REQUEST_FAILED_MESSAGE }, 502, origin);
     }
   });
 

@@ -44,6 +44,10 @@ describe("buildOpenClawDashboardUrl", () => {
     const url = buildOpenClawDashboardUrl({ baseUrl: "http://127.0.0.1:18789", token: "abc/def" });
     expect(url).toBe("http://127.0.0.1:18789/#token=abc%2Fdef");
   });
+
+  it("returns null for a non-loopback base URL", () => {
+    expect(buildOpenClawDashboardUrl({ baseUrl: "https://example.com", token: "abc" })).toBeNull();
+  });
 });
 
 describe("buildModelhubOpenClawModelId", () => {

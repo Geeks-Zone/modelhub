@@ -10,6 +10,7 @@ const OPENCLAW_BRIDGE_STORAGE_TOKEN = "openclaw-bridge-token";
 export const OPENCLAW_DEFAULT_BASE = "http://127.0.0.1:18789";
 export const OPENCLAW_DEFAULT_BRIDGE = "http://127.0.0.1:18790";
 export const OPENCLAW_PROVIDER_ID = "openclaw";
+const OPENCLAW_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 export type OpenClawMode = "bridge" | "gateway";
 
 export type OpenClawGatewaySettings = {
@@ -22,6 +23,25 @@ type ConversationLike = {
   parts?: ConversationMessagePart[] | HydratedConversationMessagePart[];
   role: "assistant" | "user";
 };
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
+function stripTrailingV1(value: string): string {
+  const lower = value.toLowerCase();
+  if (lower.endsWith("/v1/")) {
+    return value.slice(0, -4);
+  }
+  if (lower.endsWith("/v1")) {
+    return value.slice(0, -3);
+  }
+  return value;
+}
 
 export function loadOpenClawGatewaySettings(): OpenClawGatewaySettings {
   if (typeof window === "undefined") {
@@ -47,7 +67,7 @@ export function clearOpenClawGatewaySettings(): void {
 
 /** Remove trailing slashes and optional /v1 suffix; ensure scheme. */
 export function normalizeGatewayBaseUrl(raw: string): string {
-  let u = raw.trim().replace(/\/+$/, "");
+  let u = trimTrailingSlashes(raw.trim());
   if (!u) {
     return OPENCLAW_DEFAULT_BASE;
   }
@@ -56,7 +76,7 @@ export function normalizeGatewayBaseUrl(raw: string): string {
     u = `http://${u}`;
   }
 
-  return u.replace(/\/v1\/?$/i, "");
+  return stripTrailingV1(u);
 }
 
 export function buildOpenClawBridgeWebSocketUrl(raw: string): string {
@@ -84,8 +104,21 @@ export function buildOpenClawDashboardUrl(settings: OpenClawGatewaySettings): st
   if (!token) {
     return null;
   }
-  const base = normalizeGatewayBaseUrl(settings.baseUrl);
-  return `${base}/#token=${encodeURIComponent(token)}`;
+  try {
+    const url = new URL(normalizeGatewayBaseUrl(settings.baseUrl));
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    if (!OPENCLAW_LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) {
+      return null;
+    }
+    url.pathname = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
+    url.search = "";
+    url.hash = `token=${encodeURIComponent(token)}`;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 /** Bloco opcional com código pronto a colar (JSON, PowerShell, curl, etc.). */

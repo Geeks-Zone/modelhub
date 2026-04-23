@@ -234,6 +234,12 @@ function GatewayTab({
   const normalizedBase = normalizeGatewayBaseUrl(baseUrl);
   const tokenTrimmed = token.trim();
   const openClawDashboardUrl = buildOpenClawDashboardUrl({ baseUrl: normalizedBase, token: tokenTrimmed });
+  const handleOpenDashboard = () => {
+    if (!openClawDashboardUrl) {
+      return;
+    }
+    window.open(openClawDashboardUrl, "_blank", "noopener,noreferrer");
+  };
 
   const psWithToken = (t: string) =>
     `$env:OPENCLAW_GATEWAY_TOKEN="${t}"\nopenclaw gateway --port 18789`;
@@ -431,11 +437,9 @@ function GatewayTab({
         </div>
 
         {openClawDashboardUrl ? (
-          <Button asChild className="w-full gap-2 text-xs" size="sm" type="button" variant="outline">
-            <a href={openClawDashboardUrl} rel="noopener noreferrer" target="_blank">
-              <ExternalLinkIcon className="size-3.5" />
-              Abrir painel OpenClaw (chat nativo)
-            </a>
+          <Button className="w-full gap-2 text-xs" size="sm" type="button" variant="outline" onClick={handleOpenDashboard}>
+            <ExternalLinkIcon className="size-3.5" />
+            Abrir painel OpenClaw (chat nativo)
           </Button>
         ) : null}
 
