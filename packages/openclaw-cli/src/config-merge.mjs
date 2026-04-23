@@ -49,16 +49,31 @@ function generateToken() {
   return randomBytes(24).toString('hex');
 }
 
+function ensureGatewayHttpEndpoints(config) {
+  config.gateway ??= {};
+  config.gateway.http ??= {};
+  config.gateway.http.endpoints ??= {};
+  config.gateway.http.endpoints.chatCompletions = {
+    ...(typeof config.gateway.http.endpoints.chatCompletions === 'object' && config.gateway.http.endpoints.chatCompletions
+      ? config.gateway.http.endpoints.chatCompletions
+      : {}),
+    enabled: true,
+  };
+}
+
 export function ensureGatewayToken(config) {
   const existing = config?.gateway?.auth?.token;
   if (existing && typeof existing === 'string') {
-    return { config, token: existing };
+    const next = structuredClone(config ?? {});
+    ensureGatewayHttpEndpoints(next);
+    return { config: next, token: existing };
   }
 
   const token = generateToken();
   const next = structuredClone(config ?? {});
   next.gateway ??= {};
   next.gateway.mode ??= 'local';
+  ensureGatewayHttpEndpoints(next);
   next.gateway.auth = {
     ...(typeof next.gateway.auth === 'object' && next.gateway.auth ? next.gateway.auth : {}),
     mode: 'token',
@@ -122,6 +137,7 @@ export function upsertRuntimeConfig(localConfig, { apiKeyValue, providerId, serv
 
   next.gateway ??= {};
   next.gateway.mode ??= 'local';
+  ensureGatewayHttpEndpoints(next);
 
   return next;
 }

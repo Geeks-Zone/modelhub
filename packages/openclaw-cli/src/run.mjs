@@ -111,23 +111,31 @@ async function requestJson(serviceBaseUrl, route, options = {}) {
 }
 
 async function probeGatewayStatus(gatewayPort, gatewayToken) {
-  let ok = false;
-  try {
-    const health = await fetch(`http://127.0.0.1:${gatewayPort}/health`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!health.ok) {
-      return false;
+  for (const route of ['/ready', '/readyz', '/health']) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${gatewayPort}${route}`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!res.ok) {
+        continue;
+      }
+
+      const payload = await res.json().catch(() => null);
+      if (route === '/ready' || route === '/readyz') {
+        if (payload?.ready === true) {
+          return true;
+        }
+        continue;
+      }
+
+      if (payload?.ok === true || payload?.status === 'ok' || payload?.status === 'live') {
+        return true;
+      }
+    } catch {
+      // keep probing
     }
-    const models = await fetch(`http://127.0.0.1:${gatewayPort}/v1/models`, {
-      headers: gatewayToken ? { authorization: `Bearer ${gatewayToken}` } : {},
-      signal: AbortSignal.timeout(3000),
-    });
-    ok = models.ok;
-  } catch {
-    ok = false;
   }
-  return ok;
+  return false;
 }
 
 async function proxyGatewayChatCompletions({ gatewayPort, gatewayToken, origin, req, res, body, log }) {
@@ -453,14 +461,14 @@ export async function run(args) {
   server.listen(bridgePort, '127.0.0.1', () => {
     console.log(`OpenClaw pronto em http://127.0.0.1:${bridgePort}`);
     console.log('');
-    console.log('Bridge ativo. Ctrl+C para parar.');
+    console.log('Integracao local ativa. Ctrl+C para parar.');
   });
 
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       console.error(`Porta ${bridgePort} em uso. Use --bridge-port para outra porta.`);
     } else {
-      console.error(`Erro no bridge: ${error.message}`);
+      console.error(`Erro na integracao local: ${error.message}`);
     }
     process.exitCode = 1;
   });

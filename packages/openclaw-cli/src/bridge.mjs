@@ -141,7 +141,7 @@ class OpenClawWsClient {
 
       const connectMsg = {
         caps: ['tool-events'],
-        client: { name: 'modelhub-bridge', version: '1.1.0' },
+        client: { name: 'modelhub-bridge', version: '2.0.3' },
         device: { id: `modelhub-bridge-${randomUUID().slice(0, 8)}`, name: 'ModelHub Bridge' },
         maxProtocol: 3,
         minProtocol: 3,
@@ -370,7 +370,7 @@ export async function runBridge(args) {
     modelhubApiKey = String(flags['api-key'] || flags.k);
   }
 
-  console.log(`ModelHub OpenClaw Bridge v1.1.0`);
+  console.log(`ModelHub OpenClaw Bridge v2.0.3`);
   console.log(`  Bridge:     http://127.0.0.1:${bridgePort}`);
   console.log(`  Gateway:    ${gatewayBase}`);
   console.log(`  ModelHub:   ${modelhubBase}`);
@@ -728,7 +728,7 @@ export async function runBridge(args) {
   server.listen(bridgePort, '127.0.0.1', () => {
     console.log(`Bridge pronto em http://127.0.0.1:${bridgePort}`);
     console.log(`Aguardando conexoes do ModelHub web...`);
-    console.log(`\nNo ModelHub, selecione "OpenClaw (bridge)" como provider para usar o gateway local.`);
+    console.log(`\nNo ModelHub, selecione "OpenClaw (local)" como provider para usar a integracao local.`);
     console.log(`Para parar: Ctrl+C\n`);
   });
 
@@ -737,7 +737,7 @@ export async function runBridge(args) {
       console.error(`Porta ${bridgePort} em uso. Use --port para outra porta.`);
       process.exitCode = 1;
     } else {
-      console.error(`Erro no bridge: ${error.message}`);
+      console.error(`Erro na integracao local: ${error.message}`);
       process.exitCode = 1;
     }
   });

@@ -206,11 +206,11 @@ O caminho recomendado agora e usar o CLI dedicado do OpenClaw/ModelHub via `npx`
 - diagnostica o ambiente e resolve credenciais locais
 - sincroniza o catalogo do tenant no OpenClaw
 - grava a configuracao real em `~/.openclaw/openclaw.json`
-- sobe o gateway/bridge local para a UI web
+- sobe a integração local para a UI web
 - mantem `setup` e `sync` como comandos avancados
 
 ```bash
-# Fluxo recomendado: diagnostica, sincroniza e inicia o bridge local
+# Fluxo recomendado: diagnostica, sincroniza e inicia a integração local
 npx @model-hub/openclaw-cli run \
   --base-url https://www.modelhub.com.br \
   --api-key SUA_API_KEY
@@ -218,7 +218,7 @@ npx @model-hub/openclaw-cli run \
 # Validar integracao ponta a ponta
 npx @model-hub/openclaw-cli doctor
 
-# Sincronizar apenas o openclaw.json sem subir o bridge
+# Sincronizar apenas o openclaw.json sem subir a integração local
 npx @model-hub/openclaw-cli sync
 
 # Listar os modelos sincronizados para o OpenClaw
@@ -227,8 +227,7 @@ npx @model-hub/openclaw-cli models
 # Trocar o modelo primario dentro do openclaw.json
 npx @model-hub/openclaw-cli use groq/llama-3.3-70b-versatile
 
-# Alias legado de compatibilidade para o fluxo "run"
-npx @model-hub/openclaw-cli bridge
+# O alias legado "bridge" continua aceito, mas "run" é o comando recomendado
 ```
 
 Estrutura gerada no OpenClaw:

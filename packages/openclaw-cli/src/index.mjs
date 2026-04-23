@@ -829,7 +829,7 @@ Uso:
   npx @model-hub/openclaw-cli install
 
 Comandos:
-  run       Inicia o bridge local (comando principal, recomendado)
+  run       Inicia a integracao local (comando principal, recomendado)
   setup     Configura o OpenClaw para usar o ModelHub (avancado)
   sync      Sincroniza config com fallbacks e aliases do servidor
   bridge    Alias para "run" (compatibilidade)
@@ -852,7 +852,7 @@ Observacoes:
   - O comando "run" e o fluxo oficial. Ele diagnostica, instala, configura
     e inicia tudo automaticamente.
   - Se nao houver credenciais, o CLI pede a API Key no terminal (uma vez).
-  - O browser detecta o bridge automaticamente em http://127.0.0.1:18790
+  - O browser detecta a integracao local automaticamente em http://127.0.0.1:18790
   - O OpenClaw e configurado em ~/.openclaw/openclaw.json`);
 }
 

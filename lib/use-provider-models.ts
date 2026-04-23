@@ -122,10 +122,10 @@ export function useProviderModels(input: UseProviderModelsInput): UseProviderMod
           .then((m) =>
             handleModels(
               m,
-              "Nenhum modelo listado. Inicie o bridge com `npx @model-hub/openclaw-cli bridge`.",
+              "Nenhum modelo listado. Inicie a integração local com `npx @model-hub/openclaw-cli run`.",
             ),
           )
-          .catch((e) => handleError(e, "Falha ao carregar modelos do bridge."))
+          .catch((e) => handleError(e, "Falha ao carregar modelos da integração local."))
           .finally(handleFinally);
       } else {
         Promise.all([

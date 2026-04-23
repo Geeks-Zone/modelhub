@@ -1,20 +1,117 @@
-import { execSync, spawn } from 'node:child_process';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { execFileSync, execSync, spawn } from 'node:child_process';
+
+import { buildGatewayConnectParams } from './gateway-auth.mjs';
 
 const HEALTH_TIMEOUT_MS = 3000;
-const MODELS_TIMEOUT_MS = 5000;
 const WS_TIMEOUT_MS = 10000;
-const READY_TIMEOUT_MS = 15000;
+const READY_TIMEOUT_MS = 30000;
+const WINDOWS_EXECUTABLE_EXTENSIONS = ['.cmd', '.exe', '.bat', '.com'];
+
+export function pickWindowsRunnablePath(candidates) {
+  const normalized = Array.isArray(candidates)
+    ? candidates.map((candidate) => String(candidate || '').trim()).filter(Boolean)
+    : [];
+
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  for (const extension of WINDOWS_EXECUTABLE_EXTENSIONS) {
+    const match = normalized.find((candidate) => candidate.toLowerCase().endsWith(extension));
+    if (match) {
+      return match;
+    }
+  }
+
+  return normalized[0];
+}
+
+function normalizeWindowsCommand(command) {
+  const value = String(command || '').trim();
+  if (process.platform !== 'win32' || !value || path.extname(value)) {
+    return value;
+  }
+
+  const isPathLike = value.includes('\\') || value.includes('/') || path.isAbsolute(value);
+  if (isPathLike) {
+    const siblingMatch = pickWindowsRunnablePath(
+      WINDOWS_EXECUTABLE_EXTENSIONS
+        .map((extension) => `${value}${extension}`)
+        .filter((candidate) => existsSync(candidate)),
+    );
+    return siblingMatch ?? value;
+  }
+
+  try {
+    const result = execFileSync('where.exe', [value], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return pickWindowsRunnablePath(result.split(/\r?\n/)) ?? value;
+  } catch {
+    return value;
+  }
+}
+
+export function shouldUseWindowsShell(command) {
+  if (process.platform !== 'win32') {
+    return false;
+  }
+
+  const extension = path.extname(String(command || '').trim()).toLowerCase();
+  return extension === '.cmd' || extension === '.bat';
+}
+
+export function materializeWindowsOpenClawShim(command, args = []) {
+  const normalizedCommand = String(command || '').trim();
+  if (!normalizedCommand || path.basename(normalizedCommand).toLowerCase() !== 'openclaw.cmd') {
+    return null;
+  }
+
+  const binDir = path.dirname(normalizedCommand);
+  const scriptPath = path.join(binDir, 'node_modules', 'openclaw', 'openclaw.mjs');
+  if (!existsSync(scriptPath)) {
+    return null;
+  }
+
+  const nodeExePath = path.join(binDir, 'node.exe');
+  const nodeCommand = existsSync(nodeExePath) ? nodeExePath : 'node';
+  return {
+    args: [scriptPath, ...args],
+    command: nodeCommand,
+    label: `${nodeCommand} ${scriptPath}`,
+  };
+}
+
+function finalizeResolvedBin(command, args = []) {
+  if (process.platform === 'win32') {
+    const shim = materializeWindowsOpenClawShim(command, args);
+    if (shim) {
+      return shim;
+    }
+  }
+
+  const normalizedCommand = process.platform === 'win32' ? normalizeWindowsCommand(command) : String(command || '').trim();
+  return {
+    args,
+    command: normalizedCommand,
+    label: normalizedCommand,
+  };
+}
 
 function resolvePathBinary() {
   try {
     if (process.platform === 'win32') {
-      const result = execSync('where.exe openclaw', {
+      const result = execFileSync('where.exe', ['openclaw'], {
         encoding: 'utf8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      const match = result.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+      const match = pickWindowsRunnablePath(result.split(/\r?\n/));
       if (match) {
-        return { args: [], command: match, label: match };
+        const command = normalizeWindowsCommand(match);
+        return { args: [], command, label: command };
       }
       return null;
     }
@@ -37,11 +134,11 @@ function resolvePathBinary() {
 
 export function resolveOpenClawBin(flags) {
   if (flags['openclaw-bin']) {
-    return { args: [], command: String(flags['openclaw-bin']), label: String(flags['openclaw-bin']) };
+    return finalizeResolvedBin(String(flags['openclaw-bin']));
   }
 
   if (process.env.OPENCLAW_BIN) {
-    return { args: [], command: process.env.OPENCLAW_BIN, label: process.env.OPENCLAW_BIN };
+    return finalizeResolvedBin(process.env.OPENCLAW_BIN);
   }
 
   const pathBinary = resolvePathBinary();
@@ -60,35 +157,34 @@ export function formatResolvedCommand(bin) {
   return [bin.command, ...(Array.isArray(bin.args) ? bin.args : [])].join(' ');
 }
 
-async function probeGatewayHttp(port) {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/health`, {
-      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      return false;
-    }
-    const data = await res.json().catch(() => null);
-    return data?.ok === true || data?.status === 'ok';
-  } catch {
+async function requestGatewayProbe(port, route) {
+  const res = await fetch(`http://127.0.0.1:${port}${route}`, {
+    signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+  });
+  if (!res.ok) {
     return false;
   }
+
+  const data = await res.json().catch(() => null);
+  if (route === '/ready' || route === '/readyz') {
+    return data?.ready === true;
+  }
+
+  return data?.ok === true || data?.status === 'ok';
 }
 
-async function probeGatewayModels(port, token) {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/v1/models`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-      signal: AbortSignal.timeout(MODELS_TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      return false;
+async function probeGatewayHttp(port) {
+  for (const route of ['/ready', '/readyz', '/health']) {
+    try {
+      if (await requestGatewayProbe(port, route)) {
+        return true;
+      }
+    } catch {
+      // Continue probing the next readiness endpoint.
     }
-    const payload = await res.json().catch(() => null);
-    return payload?.object === 'list' && Array.isArray(payload?.data);
-  } catch {
-    return false;
   }
+
+  return false;
 }
 
 async function probeGatewayWs(port, token) {
@@ -100,7 +196,7 @@ async function probeGatewayWs(port, token) {
 
   return new Promise((resolve) => {
     const ws = new WebSocketClass(`ws://127.0.0.1:${port}`);
-    const clientId = `modelhub-bridge-${Date.now().toString(36)}`;
+    const requestId = `connect:${Date.now().toString(36)}`;
     let challengeNonce = null;
     let settled = false;
     let connectSent = false;
@@ -121,41 +217,20 @@ async function probeGatewayWs(port, token) {
     };
 
     const sendConnect = () => {
-      if (connectSent || ws.readyState !== 1) {
+      if (connectSent || ws.readyState !== 1 || !challengeNonce) {
         return;
       }
       connectSent = true;
-      const params = {
-        auth: token ? { token } : undefined,
-        caps: [],
-        client: {
-          displayName: 'ModelHub Bridge',
-          id: 'modelhub-bridge',
-          mode: 'operator',
-          platform: process.platform,
-          version: '2.0.0',
-        },
-        commands: [],
-        device: challengeNonce
-          ? {
-              id: clientId,
-              nonce: challengeNonce,
-              signedAt: Date.now(),
-            }
-          : undefined,
-        maxProtocol: 3,
-        minProtocol: 3,
-        permissions: {},
-        role: 'operator',
-        scopes: ['operator.approvals', 'operator.read', 'operator.write'],
-        userAgent: 'modelhub-bridge/2.0.0',
-      };
-      ws.send(JSON.stringify({ id: `connect:${clientId}`, method: 'connect', params, type: 'req' }));
+      const params = buildGatewayConnectParams({
+        challengeNonce,
+        clientDisplayName: 'ModelHub Bridge',
+        token,
+        version: '2.0.3',
+      });
+      ws.send(JSON.stringify({ id: requestId, method: 'connect', params, type: 'req' }));
     };
 
-    ws.addEventListener('open', () => {
-      setTimeout(sendConnect, 50);
-    });
+    ws.addEventListener('open', () => {});
 
     ws.addEventListener('message', (event) => {
       let msg;
@@ -176,7 +251,7 @@ async function probeGatewayWs(port, token) {
         return;
       }
 
-      if (msg?.type === 'res' && msg?.id?.startsWith('connect:') && msg?.ok === false) {
+      if (msg?.type === 'res' && msg?.id === requestId && msg?.ok === false) {
         settle(false);
       }
     });
@@ -194,12 +269,11 @@ async function probeGatewayReady(port, token) {
     return false;
   }
 
-  const modelsOk = await probeGatewayModels(port, token);
-  if (!modelsOk) {
-    return false;
-  }
-
   return probeGatewayWs(port, token);
+}
+
+export function buildGatewayLaunchArgs(port) {
+  return ['gateway', 'run', '--port', String(port)];
 }
 
 async function waitForGatewayReady(port, token, timeoutMs = READY_TIMEOUT_MS) {
@@ -214,10 +288,41 @@ async function waitForGatewayReady(port, token, timeoutMs = READY_TIMEOUT_MS) {
 }
 
 function startGatewayProcess(bin, port, token, log) {
-  const child = spawn(bin.command, [...bin.args, 'gateway', '--port', String(port)], {
-    detached: false,
-    env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: token },
-    stdio: 'pipe',
+  const spawnArgs = [...bin.args, ...buildGatewayLaunchArgs(port)];
+  let child;
+  try {
+    child = spawn(bin.command, spawnArgs, {
+      detached: false,
+      env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: token },
+      shell: shouldUseWindowsShell(bin.command),
+      stdio: 'pipe',
+    });
+  } catch (error) {
+    return {
+      child: null,
+      status: Promise.resolve({
+        ok: false,
+        reason: `spawn failed: ${error instanceof Error ? error.message : String(error)}`,
+      }),
+    };
+  }
+
+  const status = new Promise((resolve) => {
+    child.once('error', (error) => {
+      resolve({
+        ok: false,
+        reason: `spawn failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    });
+
+    child.once('exit', (code, signal) => {
+      resolve({
+        ok: false,
+        reason: signal
+          ? `process exited before ficar saudavel (signal=${signal})`
+          : `process exited before ficar saudavel (code=${code ?? 'unknown'})`,
+      });
+    });
   });
 
   child.stdout?.on('data', (chunk) => {
@@ -227,7 +332,7 @@ function startGatewayProcess(bin, port, token, log) {
     log.debug('[gateway:stderr]', chunk.toString().trim());
   });
 
-  return child;
+  return { child, status };
 }
 
 export async function ensureGateway({ bin, port, token, log }) {
@@ -237,11 +342,20 @@ export async function ensureGateway({ bin, port, token, log }) {
   }
 
   log.info(`Gateway: iniciando processo em 127.0.0.1:${port}...`);
-  const child = startGatewayProcess(bin, port, token, log);
+  const { child, status } = startGatewayProcess(bin, port, token, log);
 
-  const ready = await waitForGatewayReady(port, token);
+  const outcome = await Promise.race([
+    waitForGatewayReady(port, token).then((ready) => ({ kind: 'ready', ready })),
+    status.then((result) => ({ kind: 'status', result })),
+  ]);
+
+  if (outcome.kind === 'status') {
+    throw new Error(`Gateway nao iniciou: ${outcome.result.reason}`);
+  }
+
+  const ready = outcome.ready;
   if (!ready) {
-    child.kill();
+    child?.kill();
     throw new Error(`Gateway nao ficou saudavel em ${Math.floor(READY_TIMEOUT_MS / 1000)}s na porta ${port}`);
   }
 

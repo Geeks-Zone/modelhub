@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { buildGatewayConnectParams } from './gateway-auth.mjs';
+
 const RPC_TIMEOUT_MS = 30000;
 const CONNECT_TIMEOUT_MS = 10000;
 const RECONNECT_DELAY_MS = 3000;
+const CLIENT_VERSION = '2.0.3';
+const DEFAULT_CLIENT_ID = 'gateway-client';
+const DEFAULT_CLIENT_MODE = 'backend';
 
 function filterUndefinedEntries(input) {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
@@ -87,12 +92,35 @@ function extractSessionResponse(payload) {
 }
 
 function buildMessagePayload(message) {
-  return typeof message === 'string'
-    ? message
-    : filterUndefinedEntries({
-        content: message.content,
-        role: message.role || 'user',
-      });
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  if (message && typeof message === 'object' && typeof message.content === 'string') {
+    return message.content;
+  }
+
+  return '';
+}
+
+function normalizeSessionModelSelection(model) {
+  if (typeof model === 'string') {
+    return model;
+  }
+
+  if (model && typeof model === 'object' && typeof model.primary === 'string') {
+    return model.primary;
+  }
+
+  return undefined;
+}
+
+function normalizeSessionPatch(patch) {
+  const nextPatch = { ...(patch && typeof patch === 'object' ? patch : {}) };
+  if ('model' in nextPatch) {
+    nextPatch.model = normalizeSessionModelSelection(nextPatch.model);
+  }
+  return filterUndefinedEntries(nextPatch);
 }
 
 export class GatewayClient {
@@ -170,43 +198,23 @@ export class GatewayClient {
       };
 
       const sendConnect = () => {
-        if (connectSent || ws.readyState !== 1) {
+        if (connectSent || ws.readyState !== 1 || !challengeNonce) {
           return;
         }
         connectSent = true;
         const connectId = `connect:${randomUUID()}`;
-        const params = filterUndefinedEntries({
-          auth: this.#token ? { token: this.#token } : undefined,
-          caps: [],
-          client: {
-            displayName: 'ModelHub Bridge',
-            id: 'modelhub-bridge',
-            mode: 'operator',
-            platform: process.platform,
-            version: '2.0.0',
-          },
-          commands: [],
-          device: challengeNonce
-            ? {
-                id: `modelhub-bridge-${process.pid}`,
-                nonce: challengeNonce,
-                signedAt: Date.now(),
-              }
-            : undefined,
-          locale: Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
-          maxProtocol: 3,
-          minProtocol: 3,
-          permissions: {},
-          role: 'operator',
-          scopes: ['operator.approvals', 'operator.read', 'operator.write'],
-          userAgent: 'modelhub-bridge/2.0.0',
+        const params = buildGatewayConnectParams({
+          challengeNonce,
+          clientDisplayName: 'ModelHub Bridge',
+          clientId: DEFAULT_CLIENT_ID,
+          clientMode: DEFAULT_CLIENT_MODE,
+          token: this.#token,
+          version: CLIENT_VERSION,
         });
         ws.send(JSON.stringify({ id: connectId, method: 'connect', params, type: 'req' }));
       };
 
-      ws.addEventListener('open', () => {
-        setTimeout(sendConnect, 50);
-      });
+      ws.addEventListener('open', () => {});
 
       ws.addEventListener('message', (event) => {
         let msg;
@@ -410,7 +418,7 @@ export class GatewayClient {
       return null;
     }
     try {
-      const payload = await this.request('sessions.get', { sessionKey });
+      const payload = await this.request('sessions.get', { key: sessionKey });
       return extractSessionResponse(payload);
     } catch {
       return null;
@@ -419,11 +427,9 @@ export class GatewayClient {
 
   async sessionCreate(options = {}) {
     const params = filterUndefinedEntries({
+      key: options.sessionKey,
       label: options.label,
-      metadata: options.metadata,
-      model: options.model,
-      sessionKey: options.sessionKey,
-      title: options.label,
+      model: normalizeSessionModelSelection(options.model),
     });
 
     const payload = await this.request('sessions.create', params);
@@ -436,16 +442,11 @@ export class GatewayClient {
 
   async sessionSend(sessionKey, message, options = {}) {
     const idempotencyKey = options.idempotencyKey || randomUUID();
-    const payloadVariants = [
-      { sessionKey, idempotencyKey, message: buildMessagePayload(message) },
-      { sessionKey, idempotencyKey, content: typeof message === 'string' ? message : message.content },
-    ];
+    const normalizedMessage = buildMessagePayload(message);
 
     const attempts = [
-      { method: 'sessions.send', params: payloadVariants[0] },
-      { method: 'sessions.send', params: payloadVariants[1] },
-      { method: 'chat.send', params: payloadVariants[0] },
-      { method: 'chat.send', params: payloadVariants[1] },
+      { method: 'chat.send', params: { idempotencyKey, message: normalizedMessage, sessionKey } },
+      { method: 'sessions.send', params: { idempotencyKey, key: sessionKey, message: normalizedMessage } },
     ];
 
     let lastError = null;
@@ -461,26 +462,25 @@ export class GatewayClient {
   }
 
   async sessionPatch(sessionKey, patch) {
-    return this.request('sessions.patch', filterUndefinedEntries({
-      sessionKey,
-      ...patch,
-    }));
+    return this.request('sessions.patch', {
+      key: sessionKey,
+      ...normalizeSessionPatch(patch),
+    });
   }
 
   async sessionAbort(sessionKey, runId) {
     try {
-      return await this.request('sessions.abort', filterUndefinedEntries({ runId, sessionKey }));
+      return await this.request('chat.abort', filterUndefinedEntries({ runId, sessionKey }));
     } catch {
-      return this.request('chat.abort', filterUndefinedEntries({ runId, sessionKey }));
+      return this.request('sessions.abort', filterUndefinedEntries({ key: sessionKey, runId }));
     }
   }
 
-  async approvalResolve(approvalId, approved, reason) {
-    return this.request('exec.approval.resolve', filterUndefinedEntries({
-      approvalId,
-      approved,
-      reason,
-    }));
+  async approvalResolve(approvalId, approved) {
+    return this.request('exec.approval.resolve', {
+      decision: approved === false ? 'deny' : 'allow-once',
+      id: approvalId,
+    });
   }
 
   async subscribeSession(sessionKey, handler) {
@@ -492,7 +492,7 @@ export class GatewayClient {
     if (!handlers) {
       handlers = new Set();
       this.#sessionHandlers.set(sessionKey, handlers);
-      await this.request('sessions.messages.subscribe', { sessionKey });
+      await this.request('sessions.messages.subscribe', { key: sessionKey });
     }
 
     handlers.add(handler);
@@ -515,7 +515,7 @@ export class GatewayClient {
 
     this.#sessionHandlers.delete(sessionKey);
     try {
-      await this.request('sessions.messages.unsubscribe', { sessionKey });
+      await this.request('sessions.messages.unsubscribe', { key: sessionKey });
     } catch (error) {
       this.#log.debug(`[gw] unsubscribe failed for ${sessionKey}:`, normalizeError(error, 'unsubscribe').message);
     }
