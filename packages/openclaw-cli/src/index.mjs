@@ -189,6 +189,16 @@ export function upsertModelHubIntoOpenClawConfig(
   return next;
 }
 
+const OPENCLAW_ALLOWED_INPUT_TYPES = new Set(['text', 'image']);
+
+function sanitizeModelInputTypes(input) {
+  if (!Array.isArray(input)) {
+    return ['text'];
+  }
+  const filtered = [...new Set(input.filter((value) => OPENCLAW_ALLOWED_INPUT_TYPES.has(value)))];
+  return filtered.length > 0 ? filtered : ['text'];
+}
+
 function normalizeRemoteProviderModels(remoteModels, providerId = DEFAULT_PROVIDER_ID) {
   if (!Array.isArray(remoteModels)) {
     return [];
@@ -201,10 +211,13 @@ function normalizeRemoteProviderModels(remoteModels, providerId = DEFAULT_PROVID
       continue;
     }
 
+    const sanitized = { ...model };
+    delete sanitized.alias;
     normalized.push({
-      ...model,
+      ...sanitized,
       id: backendModelId,
-      name: typeof model?.name === 'string' && model.name.trim() ? model.name : backendModelId,
+      input: sanitizeModelInputTypes(model.input),
+      name: typeof model.name === 'string' && model.name.trim() ? model.name : backendModelId,
     });
   }
 

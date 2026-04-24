@@ -76,10 +76,6 @@ function inferInputTypes(model) {
   if (model?.capabilities?.images) {
     inputs.push('image');
   }
-  if (model?.capabilities?.documents) {
-    inputs.push('document');
-  }
-
   return inputs;
 }
 
@@ -97,10 +93,6 @@ export function toOpenClawProviderModel(model) {
 
   if (Number.isFinite(model.maxTokens) && model.maxTokens > 0) {
     out.maxTokens = model.maxTokens;
-  }
-
-  if (model.alias && model.alias !== model.name) {
-    out.alias = model.alias;
   }
 
   return out;

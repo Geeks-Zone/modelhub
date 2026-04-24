@@ -218,7 +218,6 @@ describe('openclaw cli helpers', () => {
 
     expect(nextConfig.models.providers.modelhub.models).toEqual([
       {
-        alias: 'GPT OSS 20B',
         contextWindow: 131072,
         id: 'openrouter/openai/gpt-oss-20b:free',
         input: ['text'],
