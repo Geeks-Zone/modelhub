@@ -9,7 +9,7 @@ import {
   toOpenClawModelRef,
 } from './utils.mjs';
 
-export async function fileExists(filePath) {
+async function fileExists(filePath) {
   try {
     await access(filePath, fsConstants.F_OK);
     return true;

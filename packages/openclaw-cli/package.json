@@ -1,6 +1,6 @@
 {
   "name": "@model-hub/openclaw-cli",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "CLI leve para conectar o OpenClaw ao ModelHub via npx",
   "license": "MIT",
   "type": "module",
