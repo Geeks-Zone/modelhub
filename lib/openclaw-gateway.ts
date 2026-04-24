@@ -79,16 +79,6 @@ export function normalizeGatewayBaseUrl(raw: string): string {
   return stripTrailingV1(u);
 }
 
-export function buildOpenClawBridgeWebSocketUrl(raw: string): string {
-  const base = normalizeGatewayBaseUrl(raw);
-  const url = new URL(base);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/ws";
-  url.search = "";
-  url.hash = "";
-  return url.toString();
-}
-
 /** Só indica que há token guardado — não confirma que o gateway responde. Use `probeOpenClawGateway`. */
 export function hasOpenClawGatewayToken(settings: OpenClawGatewaySettings): boolean {
   return settings.token.trim().length > 0;

@@ -1,10 +1,10 @@
 import { createInterface } from 'node:readline';
 
-export function isEnvVarRef(value) {
+function isEnvVarRef(value) {
   return typeof value === 'string' && /^\$\{(\w+)\}$/.test(value);
 }
 
-export function resolveEnvVarRef(value) {
+function resolveEnvVarRef(value) {
   if (!value || typeof value !== 'string') {
     return '';
   }

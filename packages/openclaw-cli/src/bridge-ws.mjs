@@ -265,7 +265,7 @@ export class BridgeWSServer {
     const modelRef = msg.model || this.#config.getPrimaryModel() || undefined;
 
     let session = await this.#gatewayClient.sessionGet(requestedSessionKey);
-    if (!session) {
+    if (!session?.sessionKey) {
       session = await this.#gatewayClient.sessionCreate({
         label: conversationId,
         model: modelRef ? { primary: modelRef } : undefined,

@@ -26,11 +26,11 @@ function normalizeTrimmedMetadata(value) {
   return trimmed ? trimmed : '';
 }
 
-export function normalizeDeviceMetadataForAuth(value) {
+function normalizeDeviceMetadataForAuth(value) {
   return normalizeTrimmedMetadata(value).replace(/[A-Z]/g, (char) => String.fromCharCode(char.charCodeAt(0) + 32));
 }
 
-export function normalizeGatewayScopes(scopes) {
+function normalizeGatewayScopes(scopes) {
   const normalized = Array.isArray(scopes)
     ? [...new Set(scopes.map((scope) => String(scope || '').trim()).filter(Boolean))]
     : [];
@@ -150,15 +150,15 @@ export function loadOrCreateDeviceIdentity({ env = process.env, filePath = resol
   return identity;
 }
 
-export function publicKeyRawBase64UrlFromPem(publicKeyPem) {
+function publicKeyRawBase64UrlFromPem(publicKeyPem) {
   return base64UrlEncode(derivePublicKeyRaw(publicKeyPem));
 }
 
-export function signDeviceAuthPayload(privateKeyPem, payload) {
+function signDeviceAuthPayload(privateKeyPem, payload) {
   return base64UrlEncode(sign(null, Buffer.from(payload, 'utf8'), createPrivateKey(privateKeyPem)));
 }
 
-export function buildDeviceAuthPayloadV3({
+function buildDeviceAuthPayloadV3({
   clientId = DEFAULT_CLIENT_ID,
   clientMode = DEFAULT_CLIENT_MODE,
   deviceFamily = '',

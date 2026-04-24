@@ -2,7 +2,7 @@
  * Módulo de criptografia para proteção de credenciais e API keys.
  *
  * - Credenciais de provedores: AES-256-GCM (IV 12 bytes, tag 16 bytes)
- * - API Keys: SHA-256 para armazenamento + comparação em tempo constante
+ * - API Keys: PBKDF2-HMAC-SHA256 com `ENCRYPTION_KEY` como pepper (determinístico)
  */
 
 import "../env";
@@ -15,7 +15,6 @@ const AES_ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
 const API_KEY_KDF_DIGEST = "sha256";
 const API_KEY_KDF_ITERATIONS = 210_000;
-const API_KEY_SALT_BYTES = 16;
 const API_KEY_DERIVED_KEY_BYTES = 32;
 
 /** Chave mestra para encriptar credenciais. DEVE ser definida em produção. */
@@ -73,16 +72,22 @@ export function generateApiKey(): { raw: string; hash: string; prefix: string } 
   return { raw, hash, prefix };
 }
 
-/** Faz hash PBKDF2 de uma API key para armazenamento/lookup */
+/**
+ * Faz hash determinístico de uma API key para armazenamento/lookup.
+ *
+ * Usa PBKDF2 com `ENCRYPTION_KEY` como pepper: alto custo computacional contra
+ * brute-force (resolve o alerta de CodeQL) e saída estável para o mesmo input,
+ * viabilizando `findFirst({ where: { key: hashApiKey(token) } })`.
+ */
 export function hashApiKey(raw: string): string {
-  const salt = randomBytes(API_KEY_SALT_BYTES);
+  const pepper = getEncryptionKey();
   const derived = pbkdf2Sync(
     raw,
-    salt,
+    pepper,
     API_KEY_KDF_ITERATIONS,
     API_KEY_DERIVED_KEY_BYTES,
     API_KEY_KDF_DIGEST
   );
-  return `pbkdf2_${API_KEY_KDF_DIGEST}$${API_KEY_KDF_ITERATIONS}$${salt.toString("hex")}$${derived.toString("hex")}`;
+  return `pbkdf2_${API_KEY_KDF_DIGEST}$${API_KEY_KDF_ITERATIONS}$${derived.toString("hex")}`;
 }
 

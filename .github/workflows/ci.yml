@@ -108,6 +108,8 @@ jobs:
       
       - name: Run tests
         run: pnpm test
+        env:
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
   audit:
     name: Security Audit
