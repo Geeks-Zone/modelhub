@@ -258,7 +258,6 @@ export type OpenClawConfigOutput = {
       apiKey: string;
       baseUrl: string;
       models: Array<{
-        alias?: string;
         contextWindow?: number;
         id: string;
         input: string[];
@@ -276,7 +275,6 @@ export function buildOpenClawConfig(
   baseUrl: string,
 ): OpenClawConfigOutput {
   const modelsList = catalog.map((m) => ({
-    alias: m.alias ?? m.name,
     contextWindow: m.contextWindow ?? undefined,
     id: m.unifiedModelId,
     input: inferModelInput(m),
@@ -330,6 +328,5 @@ export function buildOpenClawConfig(
 function inferModelInput(m: OpenClawCatalogModel): string[] {
   const input = ["text"];
   if (m.capabilities.images) input.push("image");
-  if (m.capabilities.documents) input.push("document");
   return input;
 }
