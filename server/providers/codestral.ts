@@ -1,7 +1,7 @@
 import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
-export const models = [{ capabilities: { documents: true, images: false }, id: 'codestral-latest', name: 'Codestral Latest' }]
+export const models = [{ capabilities: { documents: true, images: false, tools: true }, id: 'codestral-latest', name: 'Codestral Latest' }]
 
 const app = createProviderApp({
   providerId: 'codestral',

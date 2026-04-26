@@ -169,11 +169,26 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
+### OpenClaw Manifest
+
+Resposta autocontida para onboarding e sincronizacao do OpenClaw.
+
+**Endpoint:** `GET /openclaw/manifest`
+
+**Headers:**
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Inclui `api`, `auth`, `provider`, `catalog.models`, `catalog.presets`, `catalog.summary`, `coverage`, `config`, `generatedAt` e `degradedProviders`.
+
 ### OpenClaw Discovery
 
 Metadados para onboarding de provider de primeira classe.
 
 **Endpoint:** `GET /openclaw/discovery`
+
+> Deprecated: use `GET /openclaw/manifest`.
 
 **Headers:**
 ```
@@ -209,11 +224,15 @@ Catálogo dinâmico de modelos por tenant/workspace com metadados operacionais.
 
 **Endpoint:** `GET /openclaw/catalog`
 
+> Deprecated: use `GET /openclaw/manifest`.
+
 ### OpenClaw Status
 
 Status de autenticação e permissões de uso.
 
 **Endpoint:** `GET /openclaw/status`
+
+> Deprecated para clientes novos: `GET /openclaw/manifest` tambem expoe `degradedProviders`.
 
 ### OpenClaw Health
 

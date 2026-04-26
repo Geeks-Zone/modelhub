@@ -6,8 +6,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildGatewayLaunchArgs,
+  isGatewayReadyLogLine,
   materializeWindowsOpenClawShim,
   pickWindowsRunnablePath,
+  shouldForceRestartGateway,
   shouldUseWindowsShell,
 } from './gateway-manager.mjs';
 
@@ -32,6 +34,18 @@ describe('gateway-manager helpers', () => {
 
   it('starts the gateway with the explicit run subcommand', () => {
     expect(buildGatewayLaunchArgs(18789)).toEqual(['gateway', 'run', '--port', '18789']);
+    expect(buildGatewayLaunchArgs(18789, { force: true })).toEqual(['gateway', 'run', '--port', '18789', '--force']);
+  });
+
+  it('recognizes the gateway ready log line', () => {
+    expect(isGatewayReadyLogLine('2026-04-24T09:35:50.046-03:00 [gateway] ready (5 plugins: acpx; 13.0s)')).toBe(true);
+    expect(isGatewayReadyLogLine('2026-04-24T09:35:37.015-03:00 [gateway] starting...')).toBe(false);
+  });
+
+  it('recognizes startup failures that should trigger a forced restart', () => {
+    expect(shouldForceRestartGateway('Gateway nao iniciou: process exited before ficar saudavel (code=1); detalhe: Port 18789 is already in use.')).toBe(true);
+    expect(shouldForceRestartGateway('Gateway existente em 127.0.0.1:18789 respondeu ao /ready, mas rejeitou o token configurado.')).toBe(true);
+    expect(shouldForceRestartGateway('Gateway nao ficou saudavel em 60s na porta 18789')).toBe(false);
   });
 
   it('materializes the Windows npm shim into a direct node invocation', () => {

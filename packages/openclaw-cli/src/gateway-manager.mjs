@@ -2,12 +2,13 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 
-import { buildGatewayConnectParams } from './gateway-auth.mjs';
+import { GatewayClient } from './gateway-client.mjs';
 
 const HEALTH_TIMEOUT_MS = 3000;
 const WS_TIMEOUT_MS = 10000;
-const READY_TIMEOUT_MS = 30000;
+const READY_TIMEOUT_MS = 60000;
 const WINDOWS_EXECUTABLE_EXTENSIONS = ['.cmd', '.exe', '.bat', '.com'];
+const PROCESS_LOG_LINE_LIMIT = 8;
 
 export function pickWindowsRunnablePath(candidates) {
   const normalized = Array.isArray(candidates)
@@ -157,6 +158,52 @@ export function formatResolvedCommand(bin) {
   return [bin.command, ...(Array.isArray(bin.args) ? bin.args : [])].join(' ');
 }
 
+function appendProcessLogLines(target, chunk) {
+  const lines = String(chunk || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return;
+  }
+
+  target.push(...lines);
+  if (target.length > PROCESS_LOG_LINE_LIMIT) {
+    target.splice(0, target.length - PROCESS_LOG_LINE_LIMIT);
+  }
+}
+
+function buildProcessFailureReason(baseReason, stderrLines, stdoutLines) {
+  const detail = stderrLines.at(-1) || stdoutLines.at(-1);
+  return detail ? `${baseReason}; detalhe: ${detail}` : baseReason;
+}
+
+export function isGatewayReadyLogLine(line) {
+  const value = String(line || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+
+  return value.includes('[gateway] ready')
+    || /\bready \(\d+(\.\d+)?s\)/i.test(value);
+}
+
+export function shouldForceRestartGateway(reason) {
+  const value = String(reason || '').trim().toLowerCase();
+  if (!value) {
+    return false;
+  }
+
+  return value.includes('already running')
+    || value.includes('already in use')
+    || value.includes('lock timeout')
+    || value.includes('eaddrinuse')
+    || value.includes('port ')
+    || value.includes('rejeitou o token')
+    || value.includes('respondeu ao /ready');
+}
+
 async function requestGatewayProbe(port, route) {
   const res = await fetch(`http://127.0.0.1:${port}${route}`, {
     signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
@@ -188,98 +235,61 @@ async function probeGatewayHttp(port) {
 }
 
 async function probeGatewayWs(port, token) {
-  let WebSocketClass = globalThis.WebSocket;
-  if (!WebSocketClass) {
-    const mod = await import('ws');
-    WebSocketClass = mod.WebSocket || mod.default || mod;
-  }
-
-  return new Promise((resolve) => {
-    const ws = new WebSocketClass(`ws://127.0.0.1:${port}`);
-    const requestId = `connect:${Date.now().toString(36)}`;
-    let challengeNonce = null;
-    let settled = false;
-    let connectSent = false;
-
-    const cleanup = () => {
-      if (ws.readyState === 0 || ws.readyState === 1) {
-        ws.close();
-      }
-    };
-
-    const settle = (value) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      resolve(value);
-    };
-
-    const sendConnect = () => {
-      if (connectSent || ws.readyState !== 1 || !challengeNonce) {
-        return;
-      }
-      connectSent = true;
-      const params = buildGatewayConnectParams({
-        challengeNonce,
-        clientDisplayName: 'ModelHub Bridge',
-        token,
-        version: '2.0.3',
-      });
-      ws.send(JSON.stringify({ id: requestId, method: 'connect', params, type: 'req' }));
-    };
-
-    ws.addEventListener('open', () => {});
-
-    ws.addEventListener('message', (event) => {
-      let msg;
-      try {
-        msg = JSON.parse(typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8'));
-      } catch {
-        return;
-      }
-
-      if (msg?.type === 'event' && msg?.event === 'connect.challenge') {
-        challengeNonce = msg?.payload?.nonce ?? null;
-        sendConnect();
-        return;
-      }
-
-      if (msg?.type === 'res' && msg?.payload?.type === 'hello-ok' && msg?.ok === true) {
-        settle(true);
-        return;
-      }
-
-      if (msg?.type === 'res' && msg?.id === requestId && msg?.ok === false) {
-        settle(false);
-      }
-    });
-
-    ws.addEventListener('error', () => settle(false));
-    ws.addEventListener('close', () => settle(false));
-
-    setTimeout(() => settle(false), WS_TIMEOUT_MS);
+  const client = new GatewayClient(`http://127.0.0.1:${port}`, token, {
+    debug() {},
+    error() {},
+    info() {},
+    warn() {},
   });
+
+  try {
+    await Promise.race([
+      client.connect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Gateway WS probe timeout')), WS_TIMEOUT_MS)),
+    ]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    client.dispose();
+  }
 }
 
-async function probeGatewayReady(port, token) {
+async function probeGatewayAttachable(port, token) {
+  const wsOk = await probeGatewayWs(port, token);
+  if (wsOk) {
+    return { conflict: false, ok: true };
+  }
+
   const httpOk = await probeGatewayHttp(port);
-  if (!httpOk) {
-    return false;
+  if (httpOk) {
+    return { conflict: true, ok: false };
+  }
+
+  return { conflict: false, ok: false };
+}
+
+async function probeGatewayBootReady(port, token) {
+  const httpOk = await probeGatewayHttp(port);
+  if (httpOk) {
+    return true;
   }
 
   return probeGatewayWs(port, token);
 }
 
-export function buildGatewayLaunchArgs(port) {
-  return ['gateway', 'run', '--port', String(port)];
+export function buildGatewayLaunchArgs(port, { force = false } = {}) {
+  const args = ['gateway', 'run', '--port', String(port)];
+  if (force) {
+    args.push('--force');
+  }
+  return args;
 }
 
 async function waitForGatewayReady(port, token, timeoutMs = READY_TIMEOUT_MS) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    if (await probeGatewayReady(port, token)) {
+    if (await probeGatewayBootReady(port, token)) {
       return true;
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -287,8 +297,25 @@ async function waitForGatewayReady(port, token, timeoutMs = READY_TIMEOUT_MS) {
   return false;
 }
 
-function startGatewayProcess(bin, port, token, log) {
-  const spawnArgs = [...bin.args, ...buildGatewayLaunchArgs(port)];
+function notifyProcessLogLine(onLogLine, source, line) {
+  if (!onLogLine) {
+    return;
+  }
+  try {
+    onLogLine({ line, source });
+  } catch {
+    // Log forwarding is best-effort and must not affect the gateway process.
+  }
+}
+
+function startGatewayProcess(bin, port, token, log, { force = false, onLogLine } = {}) {
+  const spawnArgs = [...bin.args, ...buildGatewayLaunchArgs(port, { force })];
+  const stderrLines = [];
+  const stdoutLines = [];
+  let readyResolve = null;
+  const readySignal = new Promise((resolve) => {
+    readyResolve = resolve;
+  });
   let child;
   try {
     child = spawn(bin.command, spawnArgs, {
@@ -300,6 +327,7 @@ function startGatewayProcess(bin, port, token, log) {
   } catch (error) {
     return {
       child: null,
+      readySignal: Promise.resolve(false),
       status: Promise.resolve({
         ok: false,
         reason: `spawn failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -318,34 +346,52 @@ function startGatewayProcess(bin, port, token, log) {
     child.once('exit', (code, signal) => {
       resolve({
         ok: false,
-        reason: signal
-          ? `process exited before ficar saudavel (signal=${signal})`
-          : `process exited before ficar saudavel (code=${code ?? 'unknown'})`,
+        reason: buildProcessFailureReason(
+          signal
+            ? `process exited before ficar saudavel (signal=${signal})`
+            : `process exited before ficar saudavel (code=${code ?? 'unknown'})`,
+          stderrLines,
+          stdoutLines,
+        ),
       });
     });
   });
 
   child.stdout?.on('data', (chunk) => {
+    appendProcessLogLines(stdoutLines, chunk);
+    const lines = chunk.toString().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (const line of lines) {
+      notifyProcessLogLine(onLogLine, 'stdout', line);
+      if (isGatewayReadyLogLine(line)) {
+        readyResolve?.(true);
+      }
+    }
     log.debug('[gateway:stdout]', chunk.toString().trim());
   });
   child.stderr?.on('data', (chunk) => {
+    appendProcessLogLines(stderrLines, chunk);
+    const lines = chunk.toString().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (const line of lines) {
+      notifyProcessLogLine(onLogLine, 'stderr', line);
+    }
     log.debug('[gateway:stderr]', chunk.toString().trim());
   });
 
-  return { child, status };
+  return { child, readySignal, status };
 }
 
-export async function ensureGateway({ bin, port, token, log }) {
-  if (await probeGatewayReady(port, token)) {
-    log.info(`Gateway: attach em 127.0.0.1:${port} (saudavel)`);
-    return { child: null, mode: 'attach' };
-  }
+async function bootGatewayProcess({ bin, force = false, log, onLogLine, port, token }) {
+  log.info(
+    force
+      ? `Gateway: tentando reinicio forcado em 127.0.0.1:${port}...`
+      : `Gateway: iniciando processo em 127.0.0.1:${port}...`,
+  );
 
-  log.info(`Gateway: iniciando processo em 127.0.0.1:${port}...`);
-  const { child, status } = startGatewayProcess(bin, port, token, log);
+  const { child, readySignal, status } = startGatewayProcess(bin, port, token, log, { force, onLogLine });
 
   const outcome = await Promise.race([
     waitForGatewayReady(port, token).then((ready) => ({ kind: 'ready', ready })),
+    readySignal.then(() => ({ kind: 'ready-signal', ready: true })),
     status.then((result) => ({ kind: 'status', result })),
   ]);
 
@@ -353,12 +399,41 @@ export async function ensureGateway({ bin, port, token, log }) {
     throw new Error(`Gateway nao iniciou: ${outcome.result.reason}`);
   }
 
-  const ready = outcome.ready;
-  if (!ready) {
+  if (!outcome.ready) {
+    if (await probeGatewayBootReady(port, token)) {
+      log.info('Gateway: processo filho saudavel (confirmado apos timeout inicial)');
+      return { child, mode: 'own' };
+    }
     child?.kill();
     throw new Error(`Gateway nao ficou saudavel em ${Math.floor(READY_TIMEOUT_MS / 1000)}s na porta ${port}`);
   }
 
   log.info('Gateway: processo filho saudavel');
   return { child, mode: 'own' };
+}
+
+export async function ensureGateway({ bin, port, token, log, onLogLine }) {
+  const attachProbe = await probeGatewayAttachable(port, token);
+  if (attachProbe.ok) {
+    log.info(`Gateway: attach em 127.0.0.1:${port} (saudavel)`);
+    return { child: null, mode: 'attach' };
+  }
+
+  if (attachProbe.conflict) {
+    log.warn(
+      `Gateway existente em 127.0.0.1:${port} respondeu ao /ready, mas rejeitou o token configurado. Tentando reinicio forcado...`,
+    );
+    return bootGatewayProcess({ bin, force: true, log, onLogLine, port, token });
+  }
+
+  try {
+    return await bootGatewayProcess({ bin, force: false, log, onLogLine, port, token });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (shouldForceRestartGateway(message)) {
+      log.warn(`Gateway: primeira tentativa falhou (${message}). Tentando reinicio forcado...`);
+      return bootGatewayProcess({ bin, force: true, log, onLogLine, port, token });
+    }
+    throw error;
+  }
 }

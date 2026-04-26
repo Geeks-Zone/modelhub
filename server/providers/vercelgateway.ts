@@ -2,8 +2,8 @@ import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
 export const models = [
-  { capabilities: { documents: true, images: true }, id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 Mini (Vercel AI Gateway)' },
-  { capabilities: { documents: true, images: true }, id: 'anthropic/claude-3-5-haiku', name: 'Claude 3.5 Haiku (Vercel AI Gateway)' },
+  { capabilities: { documents: true, images: true, tools: true }, id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 Mini (Vercel AI Gateway)' },
+  { capabilities: { documents: true, images: true, tools: true }, id: 'anthropic/claude-3-5-haiku', name: 'Claude 3.5 Haiku (Vercel AI Gateway)' },
 ]
 
 const app = createProviderApp({

@@ -2,8 +2,8 @@ import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
 export const models = [
-  { capabilities: { documents: true, images: false }, id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B (HF Inference)' },
-  { capabilities: { documents: true, images: false }, id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B (HF Inference)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B (HF Inference)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B (HF Inference)' },
 ]
 
 const app = createProviderApp({

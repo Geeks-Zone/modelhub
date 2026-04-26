@@ -89,9 +89,9 @@ const app = createProviderApp({
   },
 })
 
-export async function fetchCloudflareModels(): Promise<ProviderModel[]> {
-  const token = resolveEnv('CLOUDFLARE_API_TOKEN')
-  const accountId = resolveEnv('CLOUDFLARE_ACCOUNT_ID')
+export async function fetchCloudflareModels(credentials?: Record<string, string>): Promise<ProviderModel[]> {
+  const token = resolveEnv('CLOUDFLARE_API_TOKEN', credentials)
+  const accountId = resolveEnv('CLOUDFLARE_ACCOUNT_ID', credentials)
   const base = process.env.CLOUDFLARE_AI_BASE_URL || 'https://api.cloudflare.com/client/v4'
   const response = await fetchWithTimeout(
     `${base}/accounts/${accountId}/ai/models/search?task=Text Generation`,

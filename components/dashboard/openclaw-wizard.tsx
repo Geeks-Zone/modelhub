@@ -32,9 +32,9 @@ export function OpenClawWizard({
   hasApiKey,
   onCreateKey,
 }: {
-  apiKey: string | null;
-  hasApiKey: boolean;
-  onCreateKey: () => void;
+  readonly apiKey: string | null;
+  readonly hasApiKey: boolean;
+  readonly onCreateKey: () => void;
 }) {
   const [activeStep, setActiveStep] = useState<WizardStep>("install");
   const [activeOs, setActiveOs] = useState<OsTab>("macos");
@@ -76,7 +76,7 @@ export function OpenClawWizard({
       {activeStep === "install" && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Passo 1 de 4 — Instale o OpenClaw</p>
+            <p className="text-sm font-medium">Passo 1 de 5 — Instale o OpenClaw</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               O OpenClaw é um assistente de IA local. Instale uma vez e use no terminal. Requer Node.js 22+.
             </p>
@@ -104,7 +104,7 @@ export function OpenClawWizard({
       {activeStep === "connect" && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Passo 2 de 4 — Conecte ao ModelHub</p>
+            <p className="text-sm font-medium">Passo 2 de 5 — Conecte ao ModelHub</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               Copie o comando abaixo e rode no terminal. Ele configura o OpenClaw para usar o ModelHub
               como provider, sincroniza o catálogo e define o modelo recomendado.
@@ -132,8 +132,8 @@ export function OpenClawWizard({
           <div className="space-y-1">
             <p className="text-sm font-medium">Passo 4 de 5 — Sincronize config completo</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              O <code className="rounded bg-muted px-1 py-0.5">sync</code> puxa do servidor o config com
-              <strong>fallbacks</strong> (modelos alternativos), <strong>aliases</strong> (nomes curtos) e
+              O <code className="rounded bg-muted px-1 py-0.5">sync</code> puxa do servidor o config com{' '}
+              <strong>fallbacks</strong> (modelos alternativos), <strong>aliases</strong> (nomes curtos) e{' '}
               <strong>contextWindow</strong>. A API key fica como env var <code className="rounded bg-muted px-1 py-0.5">{"${MODELHUB_API_KEY}"}</code>.
             </p>
             <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">

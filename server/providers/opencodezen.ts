@@ -2,8 +2,8 @@ import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
 export const models = [
-  { capabilities: { documents: true, images: false }, id: 'big-pickle-stealth', name: 'Big Pickle Stealth (OpenCode Zen)' },
-  { capabilities: { documents: true, images: false }, id: 'minimax-m2.5-free', name: 'MiniMax M2.5 Free (OpenCode Zen)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'big-pickle-stealth', name: 'Big Pickle Stealth (OpenCode Zen)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'minimax-m2.5-free', name: 'MiniMax M2.5 Free (OpenCode Zen)' },
 ]
 
 const app = createProviderApp({

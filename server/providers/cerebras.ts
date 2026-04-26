@@ -71,7 +71,7 @@ async function resolveCerebrasFallbackIds(
 
 /** Só modelos seguros quando GET /v1/models falha — evita exibir IDs que a chave não pode usar no chat. */
 export const models = [
-  { capabilities: { documents: true, images: false }, id: 'llama3.1-8b', name: 'Llama 3.1 8B (Cerebras)' },
+  { capabilities: { documents: true, images: false, tools: false }, id: 'llama3.1-8b', name: 'Llama 3.1 8B (Cerebras)' },
 ]
 
 const app = createProviderApp({

@@ -1,9 +1,17 @@
 "use client";
 
 const SESSION_STORAGE_PREFIX = "openclaw-bridge-session:";
+const BRIDGE_CONNECT_TIMEOUT_MS = 25_000;
+const BRIDGE_DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const BRIDGE_SESSION_ENSURE_TIMEOUT_MS = 45_000;
+const BRIDGE_HEARTBEAT_INTERVAL_MS = 20_000;
+const BRIDGE_HEARTBEAT_MAX_MISSES = 2;
+const BRIDGE_RECONNECT_BASE_DELAY_MS = 1_000;
+const BRIDGE_RECONNECT_MAX_DELAY_MS = 30_000;
 
 export type OpenClawBridgeHello = {
   bridgeId?: string;
+  bridgeToken?: string;
   gateway?: { ok?: boolean; ws?: boolean };
   model?: { primary?: string | null };
   models?: Array<{ id: string; name: string }>;
@@ -66,18 +74,28 @@ export type OpenClawBridgeEvent =
       type: "run.completed";
     }
   | {
+      detail?: unknown;
+      label: string;
+      requestId?: string;
+      runId?: string;
+      status?: "completed" | "error" | "running";
+      step?: string;
+      type: "run.status";
+    }
+  | {
       model: string;
       requestId?: string;
       type: "model.changed";
     }
   | {
-      models: Array<{ id: string; name: string }>;
+      model?: { primary?: string | null };
+      models?: Array<{ id: string; name: string }>;
       requestId?: string;
       type: "model.list";
     }
   | {
       requestId?: string;
-      type: "ready" | "pong";
+      type: "ping" | "ready" | "pong";
     };
 
 type PendingRequest = {
@@ -96,6 +114,8 @@ function buildBridgeWebSocketUrl(baseUrl: string): string {
 }
 
 const BRIDGE_CONNECTION_ERROR_MESSAGES = [
+  "Bridge WS timeout",
+  "Bridge WS connection",
   "Bridge WS connection failed",
   "Bridge WS disconnected",
   "Bridge WS connection timed out",
@@ -107,6 +127,13 @@ export function isBridgeConnectionError(error: unknown): boolean {
     return false;
   }
   return BRIDGE_CONNECTION_ERROR_MESSAGES.some((prefix) => error.message.startsWith(prefix));
+}
+
+function getBridgeRequestTimeoutMs(type: string): number {
+  if (type === "session.ensure") {
+    return BRIDGE_SESSION_ENSURE_TIMEOUT_MS;
+  }
+  return BRIDGE_DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
 export function loadOpenClawBridgeSessionKey(conversationId: string): string {
@@ -127,16 +154,33 @@ export class OpenClawBridgeClient {
   readonly baseUrl: string;
 
   #connectPromise: Promise<OpenClawBridgeHello> | null = null;
+  #heartbeatMisses = 0;
+  #heartbeatTimer: number | null = null;
   #hello: OpenClawBridgeHello | null = null;
+  // O hello e zerado em close() para sinalizar "WS aberto e healthy?".
+  // Mas o token gerado pelo CLI nao muda entre reconexoes; cacheamos para
+  // que o fallback HTTP possa autenticar mesmo enquanto o WS esta
+  // momentaneamente caido. Limpamos apenas em disconnect() manual.
+  #lastBridgeToken = "";
   #listeners = new Set<(event: OpenClawBridgeEvent) => void>();
+  #manuallyClosed = false;
   #pendingRequests = new Map<string, PendingRequest>();
+  #reconnectAttempt = 0;
+  #reconnectTimer: number | null = null;
   #socket: WebSocket | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
+  /** Token recebido via hello WS, usado para autenticar fallback HTTP. */
+  get bridgeToken(): string {
+    return this.#hello?.bridgeToken || this.#lastBridgeToken;
+  }
+
   async connect(): Promise<OpenClawBridgeHello> {
+    this.#manuallyClosed = false;
+    this.#clearReconnectTimer();
     if (this.#hello && this.#socket?.readyState === WebSocket.OPEN) {
       return this.#hello;
     }
@@ -148,13 +192,29 @@ export class OpenClawBridgeClient {
       const socket = new WebSocket(buildBridgeWebSocketUrl(this.baseUrl));
       this.#socket = socket;
       let settled = false;
+      const connectTimeoutId = window.setTimeout(() => {
+        if (!settled) {
+          settleReject(new Error("Bridge WS connection timed out"));
+          try {
+            socket.close();
+          } catch {
+            // ignore
+          }
+        }
+      }, BRIDGE_CONNECT_TIMEOUT_MS);
 
       const settleResolve = (hello: OpenClawBridgeHello) => {
         if (settled) {
           return;
         }
         settled = true;
+        window.clearTimeout(connectTimeoutId);
         this.#hello = hello;
+        if (hello.bridgeToken) {
+          this.#lastBridgeToken = hello.bridgeToken;
+        }
+        this.#reconnectAttempt = 0;
+        this.#startHeartbeat(socket);
         resolve(hello);
       };
 
@@ -163,6 +223,7 @@ export class OpenClawBridgeClient {
           return;
         }
         settled = true;
+        window.clearTimeout(connectTimeoutId);
         reject(error);
       };
 
@@ -178,17 +239,26 @@ export class OpenClawBridgeClient {
           return;
         }
         this.#dispatch(message);
+        if (message.type === "pong") {
+          this.#heartbeatMisses = 0;
+        }
         if (message.type === "hello") {
           settleResolve(message);
         }
       });
 
       socket.addEventListener("close", () => {
+        this.#stopHeartbeat(socket);
         this.#hello = null;
-        this.#socket = null;
+        if (this.#socket === socket) {
+          this.#socket = null;
+        }
         this.#failPendingRequests(new Error("Bridge WS disconnected"));
         if (!settled) {
           settleReject(new Error("Bridge WS disconnected"));
+        }
+        if (!this.#manuallyClosed) {
+          this.#scheduleReconnect();
         }
       });
 
@@ -197,17 +267,6 @@ export class OpenClawBridgeClient {
           settleReject(new Error("Bridge WS connection failed"));
         }
       });
-
-      window.setTimeout(() => {
-        if (!settled) {
-          try {
-            socket.close();
-          } catch {
-            // ignore
-          }
-          settleReject(new Error("Bridge WS connection timed out"));
-        }
-      }, 10000);
     }).finally(() => {
       this.#connectPromise = null;
     });
@@ -287,11 +346,24 @@ export class OpenClawBridgeClient {
   }
 
   disconnect(): void {
+    this.#manuallyClosed = true;
+    this.#clearReconnectTimer();
     this.#hello = null;
-    if (this.#socket) {
-      this.#socket.close();
-      this.#socket = null;
+    this.#lastBridgeToken = "";
+    const socket = this.#socket;
+    this.#socket = null;
+    if (socket) {
+      this.#stopHeartbeat(socket);
+      // O handler "close" ja chama #failPendingRequests; nao duplicamos aqui.
+      // Se o socket ja estiver fechado, falhamos manualmente.
+      if (socket.readyState === WebSocket.CLOSED) {
+        this.#failPendingRequests(new Error("Bridge WS disconnected"));
+      } else {
+        socket.close();
+      }
+      return;
     }
+    this.#failPendingRequests(new Error("Bridge WS disconnected"));
   }
 
   #dispatch(event: OpenClawBridgeEvent) {
@@ -329,6 +401,65 @@ export class OpenClawBridgeClient {
     }
   }
 
+  #clearReconnectTimer() {
+    if (this.#reconnectTimer) {
+      window.clearTimeout(this.#reconnectTimer);
+      this.#reconnectTimer = null;
+    }
+  }
+
+  #scheduleReconnect() {
+    if (this.#reconnectTimer || this.#manuallyClosed) {
+      return;
+    }
+
+    const attempt = this.#reconnectAttempt;
+    const delayMs = Math.min(
+      BRIDGE_RECONNECT_MAX_DELAY_MS,
+      BRIDGE_RECONNECT_BASE_DELAY_MS * 2 ** attempt,
+    );
+    this.#reconnectAttempt = attempt + 1;
+    this.#reconnectTimer = window.setTimeout(() => {
+      this.#reconnectTimer = null;
+      void this.connect().catch(() => {
+        this.#scheduleReconnect();
+      });
+    }, delayMs);
+  }
+
+  #startHeartbeat(socket: WebSocket) {
+    this.#stopHeartbeat(socket);
+    this.#heartbeatMisses = 0;
+    this.#heartbeatTimer = window.setInterval(() => {
+      if (this.#socket !== socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      if (this.#heartbeatMisses >= BRIDGE_HEARTBEAT_MAX_MISSES) {
+        socket.close();
+        return;
+      }
+
+      this.#heartbeatMisses += 1;
+      try {
+        socket.send(JSON.stringify({ type: "ping" }));
+      } catch {
+        socket.close();
+      }
+    }, BRIDGE_HEARTBEAT_INTERVAL_MS);
+  }
+
+  #stopHeartbeat(socket?: WebSocket) {
+    if (socket && this.#socket !== socket) {
+      return;
+    }
+    if (this.#heartbeatTimer) {
+      window.clearInterval(this.#heartbeatTimer);
+      this.#heartbeatTimer = null;
+    }
+    this.#heartbeatMisses = 0;
+  }
+
   async #send(payload: Record<string, unknown>): Promise<void> {
     await this.connect();
     if (!this.#socket || this.#socket.readyState !== WebSocket.OPEN) {
@@ -339,12 +470,18 @@ export class OpenClawBridgeClient {
 
   async #request(requestId: string, types: Set<string>, payload: Record<string, unknown>): Promise<OpenClawBridgeEvent> {
     await this.connect();
+    const requestType = typeof payload.type === "string" ? payload.type : "request";
+    const timeoutMs = getBridgeRequestTimeoutMs(requestType);
 
     return new Promise<OpenClawBridgeEvent>((resolve, reject) => {
       const timeoutId = window.setTimeout(() => {
         this.#pendingRequests.delete(requestId);
-        reject(new Error(`Bridge WS timeout for ${payload.type}`));
-      }, 10000);
+        if (requestType === "session.ensure") {
+          reject(new Error("Bridge WS timeout for session.ensure (o gateway local demorou para preparar a sessao)"));
+          return;
+        }
+        reject(new Error(`Bridge WS timeout for ${requestType}`));
+      }, timeoutMs);
 
       this.#pendingRequests.set(requestId, {
         reject: (error) => {

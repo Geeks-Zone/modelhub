@@ -56,7 +56,7 @@ export async function fetchPollinationsModels(): Promise<ProviderModel[]> {
       const hasImages = m.vision === true || (Array.isArray(m.input_modalities) && m.input_modalities.some((im) => im.toLowerCase() === 'image'))
 
       merged.push({
-        capabilities: { documents: true, images: hasImages },
+        capabilities: { documents: true, images: hasImages, tools: true },
         id,
         name: m.description || id,
       })

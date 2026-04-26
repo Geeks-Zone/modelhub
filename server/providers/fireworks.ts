@@ -2,9 +2,9 @@ import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
 export const models = [
-  { capabilities: { documents: true, images: false }, id: 'accounts/fireworks/models/llama4-scout-instruct-basic', name: 'Llama 4 Scout (Fireworks)' },
-  { capabilities: { documents: true, images: false }, id: 'accounts/fireworks/models/llama-v3p3-70b-instruct', name: 'Llama 3.3 70B (Fireworks)' },
-  { capabilities: { documents: true, images: false }, id: 'accounts/fireworks/models/deepseek-r1', name: 'DeepSeek R1 (Fireworks)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'accounts/fireworks/models/llama4-scout-instruct-basic', name: 'Llama 4 Scout (Fireworks)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'accounts/fireworks/models/llama-v3p3-70b-instruct', name: 'Llama 3.3 70B (Fireworks)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'accounts/fireworks/models/deepseek-r1', name: 'DeepSeek R1 (Fireworks)' },
 ]
 
 const FIREWORKS_CHAT_URL = process.env.FIREWORKS_CHAT_URL || 'https://api.fireworks.ai/inference/v1/chat/completions'

@@ -29,7 +29,7 @@ type ProviderHandler = (req: Request) => Response | Promise<Response>;
 type ProviderEntry = {
   handler: ProviderHandler;
   models: readonly ProviderModel[];
-  fetchModels?: () => Promise<ProviderModel[]>;
+  fetchModels?: (credentials?: Record<string, string>) => Promise<ProviderModel[]>;
 };
 
 export const providerRegistry: Record<string, ProviderEntry> = {
@@ -113,13 +113,31 @@ export const providerRegistry: Record<string, ProviderEntry> = {
   },
 };
 
+export type GetProviderModelsOptions = {
+  credentials?: Record<string, string>;
+  cacheKeySuffix?: string;
+  staleWhileRevalidate?: boolean;
+};
+
 /** Get models for a provider, using dynamic fetch + cache when available. */
-export async function getProviderModels(providerId: string): Promise<readonly ProviderModel[]> {
+export async function getProviderModels(
+  providerId: string,
+  options: GetProviderModelsOptions = {},
+): Promise<readonly ProviderModel[]> {
   const entry = providerRegistry[providerId];
   if (!entry) return [];
 
   if (entry.fetchModels) {
-    return getCachedModels(providerId, entry.fetchModels, entry.models, DEFAULT_MODELS_CACHE_TTL_MS)
+    return getCachedModels(
+      providerId,
+      () => entry.fetchModels?.(options.credentials) ?? Promise.resolve([]),
+      entry.models,
+      DEFAULT_MODELS_CACHE_TTL_MS,
+      {
+        cacheKeySuffix: options.cacheKeySuffix,
+        staleWhileRevalidate: options.staleWhileRevalidate,
+      },
+    )
   }
 
   return entry.models;

@@ -39,7 +39,7 @@ describe('openclaw cli helpers', () => {
       contextWindow: 131072,
       id: 'openrouter/openai/gpt-oss-20b:free',
       input: ['text', 'image'],
-      name: 'GPT OSS 20B (openrouter)',
+      name: 'GPT OSS 20B',
       reasoning: true,
     });
   });
@@ -177,7 +177,7 @@ describe('openclaw cli helpers', () => {
               primary: 'openrouter/openai/gpt-oss-20b:free',
             },
             models: {
-              'openrouter/openai/gpt-oss-20b:free': { alias: 'GPT OSS 20B' },
+              'openrouter/openai/gpt-oss-20b:free': { alias: 'OpenRouter: GPT OSS 20B' },
             },
           },
         },
@@ -190,17 +190,17 @@ describe('openclaw cli helpers', () => {
               baseUrl: 'https://www.modelhub.com.br/v1',
               models: [
                 {
-                  alias: 'GPT OSS 20B',
+                  alias: 'OpenRouter: GPT OSS 20B',
                   contextWindow: 131072,
                   id: 'openrouter/openai/gpt-oss-20b:free',
                   input: ['text'],
-                  name: 'GPT OSS 20B',
+                  name: 'OpenRouter: GPT OSS 20B',
                   reasoning: true,
                 },
                 {
                   id: 'groq/llama-3.3-70b-versatile',
                   input: ['text'],
-                  name: 'Llama 3.3 70B',
+                  name: 'Groq: Llama 3.3 70B',
                   reasoning: false,
                 },
               ],
@@ -221,13 +221,13 @@ describe('openclaw cli helpers', () => {
         contextWindow: 131072,
         id: 'openrouter/openai/gpt-oss-20b:free',
         input: ['text'],
-        name: 'GPT OSS 20B',
+        name: 'OpenRouter: GPT OSS 20B',
         reasoning: true,
       },
       {
         id: 'groq/llama-3.3-70b-versatile',
         input: ['text'],
-        name: 'Llama 3.3 70B',
+        name: 'Groq: Llama 3.3 70B',
         reasoning: false,
       },
     ]);
@@ -239,7 +239,7 @@ describe('openclaw cli helpers', () => {
     ]);
     expect(nextConfig.agents.defaults.models).toEqual({
       'anthropic/claude-sonnet-4-5': { alias: 'Claude Sonnet' },
-      'modelhub/openrouter/openai/gpt-oss-20b:free': { alias: 'GPT OSS 20B' },
+      'modelhub/openrouter/openai/gpt-oss-20b:free': { alias: 'OpenRouter: GPT OSS 20B' },
     });
   });
 });

@@ -122,7 +122,12 @@ type UserMemoryRecord = {
 /** Agentes (OpenClaw, etc.) podem enviar histórico longo com várias tool rounds — 50 era pouco. */
 const MAX_MESSAGES = 256
 const MAX_PARTS_PER_MESSAGE = 64
-const MAX_MESSAGE_TEXT_LENGTH = 20_000
+/**
+ * OpenClaw can prepend a very large system prompt containing the active tool
+ * inventory and safety/runtime instructions. Keep this comfortably above that
+ * prompt size while still bounded below the total request-body cap.
+ */
+const MAX_MESSAGE_TEXT_LENGTH = 256_000
 export const MAX_PROVIDER_REQUEST_BODY_BYTES = 4 * 1024 * 1024
 const MAX_PROVIDER_IMAGE_URL_LENGTH = 4 * 1024 * 1024
 
@@ -1035,7 +1040,41 @@ export function upstreamErrorResponse(
     Object.keys(fromUpstream).length > 0 || (extraFields && Object.keys(extraFields).length > 0)
       ? { ...fromUpstream, ...extraFields }
       : undefined
-  return jsonErrorResponse(status, `${providerName} upstream error`, details)
+  const upstreamMessage = extractUpstreamErrorMessage(detailsForLog)
+  const message = upstreamMessage
+    ? `${providerName} upstream error: ${upstreamMessage}`
+    : `${providerName} upstream error`
+  return jsonErrorResponse(status, message, details)
+}
+
+function extractUpstreamErrorMessage(detailsForLog: string | undefined): string {
+  if (!detailsForLog) return ''
+
+  try {
+    const parsed: unknown = JSON.parse(detailsForLog)
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as Record<string, unknown>
+      if (typeof record.message === 'string' && record.message.trim()) {
+        return record.message.trim().slice(0, 500)
+      }
+
+      if (typeof record.error === 'string' && record.error.trim()) {
+        return record.error.trim().slice(0, 500)
+      }
+
+      if (typeof record.error === 'object' && record.error !== null) {
+        const errorRecord = record.error as Record<string, unknown>
+        if (typeof errorRecord.message === 'string' && errorRecord.message.trim()) {
+          return errorRecord.message.trim().slice(0, 500)
+        }
+      }
+    }
+  } catch {
+    // Fall through to plain-text extraction.
+  }
+
+  const plain = detailsForLog.trim()
+  return plain.startsWith('{') ? '' : plain.slice(0, 500)
 }
 
 function formatProviderErrorDetail(error: unknown): string {

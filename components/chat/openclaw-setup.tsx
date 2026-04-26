@@ -23,6 +23,7 @@ import {
   OPENCLAW_DEFAULT_BRIDGE,
   type OpenClawGatewaySettings,
   type OpenClawGatewayDiagnostic,
+  type OpenClawMode,
   buildOpenClawDashboardUrl,
   clearOpenClawGatewaySettings,
   generateSuggestedGatewayToken,
@@ -34,16 +35,15 @@ import {
   saveOpenClawGatewaySettings,
   saveOpenClawBridgeSettings,
 } from "@/lib/openclaw-gateway";
-import type { OpenClawMode } from "@/lib/openclaw-gateway";
 import { useCopyToClipboard } from "@/lib/use-copy-to-clipboard";
 
 type Props = {
-  mode: OpenClawMode;
-  onModeChange: (mode: OpenClawMode) => void;
-  onGatewaySaved: (settings: OpenClawGatewaySettings) => void;
-  onBridgeSaved: (settings: OpenClawGatewaySettings, probeOk: boolean) => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  readonly mode: OpenClawMode;
+  readonly onModeChange: (mode: OpenClawMode) => void;
+  readonly onGatewaySaved: (settings: OpenClawGatewaySettings) => void;
+  readonly onBridgeSaved: (settings: OpenClawGatewaySettings, probeOk: boolean) => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 };
 
 export function OpenClawSetupDialog({ mode, onModeChange, onGatewaySaved, onBridgeSaved, open, onOpenChange }: Props) {
@@ -84,9 +84,9 @@ function BridgeTab({
   onSaved,
   onOpenChange,
 }: {
-  open: boolean;
-  onSaved: (settings: OpenClawGatewaySettings, probeOk: boolean) => void;
-  onOpenChange: (open: boolean) => void;
+  readonly open: boolean;
+  readonly onSaved: (settings: OpenClawGatewaySettings, probeOk: boolean) => void;
+  readonly onOpenChange: (open: boolean) => void;
 }) {
   const [baseUrl, setBaseUrl] = useState(OPENCLAW_DEFAULT_BRIDGE);
   const [probing, setProbing] = useState(false);
@@ -156,8 +156,9 @@ function BridgeTab({
         <CommandBlock command={runCommand} copyId="run-start" label="Copiar comando" successMessage="Comando copiado!" />
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">URL local</label>
+          <label className="text-sm font-medium" htmlFor="bridge-url">URL local</label>
           <Input
+            id="bridge-url"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             placeholder={OPENCLAW_DEFAULT_BRIDGE}
@@ -170,7 +171,7 @@ function BridgeTab({
             <Loader2Icon className="size-4 animate-spin" />
             A verificar integracao local...
           </div>
-        ) : !probing && gatewayModels >= 0 ? (
+        ) : gatewayModels >= 0 ? (
           <div className={`rounded-lg border px-3 py-2 text-xs ${
             bridgeOk
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
@@ -211,9 +212,9 @@ function GatewayTab({
   onSaved,
   onOpenChange,
 }: {
-  open: boolean;
-  onSaved: (settings: OpenClawGatewaySettings) => void;
-  onOpenChange: (open: boolean) => void;
+  readonly open: boolean;
+  readonly onSaved: (settings: OpenClawGatewaySettings) => void;
+  readonly onOpenChange: (open: boolean) => void;
 }) {
   const [baseUrl, setBaseUrl] = useState(OPENCLAW_DEFAULT_BASE);
   const [token, setToken] = useState("");
@@ -237,7 +238,7 @@ function GatewayTab({
     if (!openClawDashboardUrl) {
       return;
     }
-    window.open(openClawDashboardUrl, "_blank", "noopener,noreferrer");
+    globalThis.window?.open(openClawDashboardUrl, "_blank", "noopener,noreferrer");
   };
 
   const psWithToken = (t: string) =>

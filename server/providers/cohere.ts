@@ -93,8 +93,8 @@ const app = createProviderApp({
   },
 })
 
-export async function fetchCohereModels(): Promise<ProviderModel[]> {
-  const apiKey = resolveEnv('COHERE_API_KEY')
+export async function fetchCohereModels(credentials?: Record<string, string>): Promise<ProviderModel[]> {
+  const apiKey = resolveEnv('COHERE_API_KEY', credentials)
   const response = await fetchWithTimeout(
     'https://api.cohere.com/v2/models',
     { method: 'GET', headers: { Authorization: `Bearer ${apiKey}` } },

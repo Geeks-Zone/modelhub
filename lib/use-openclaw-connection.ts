@@ -30,37 +30,54 @@ type OpenClawBridgeProbeState =
   | { status: "ok" }
   | { status: "error" };
 
-type UseOpenClawConnectionReturn = {
-  /** Active mode: bridge is the primary default; gateway is advanced/manual. */
-  mode: OpenClawMode;
-  /** Whether the bridge probe passed. */
-  bridgeUsable: boolean;
-  /** Current bridge settings (baseUrl + token). */
-  bridgeSettings: OpenClawGatewaySettings;
-  /** Current bridge probe state. */
-  bridgeProbe: OpenClawBridgeProbeState;
-  /** Whether the gateway has token AND probe passed. */
-  gatewayUsable: boolean;
-  /** Current gateway settings (baseUrl + token). */
-  gatewaySettings: OpenClawGatewaySettings;
-  /** Current gateway probe state. */
-  gatewayProbe: OpenClawProbeState;
-  /** Whether the active OpenClaw connection is usable (mode-selected). */
-  isOpenClawReady: boolean;
-  /** Check if OpenClaw provider is configured/configured (any mode probe ok). */
-  isOpenClawConfigured: boolean;
-  /** Called by the setup dialog on gateway saved. */
-  onGatewaySaved: (settings: OpenClawGatewaySettings) => void;
-  /** Called by the setup dialog on bridge saved. */
-  onBridgeSaved: (settings: OpenClawGatewaySettings, probeOk: boolean) => void;
-  /** Manually retry the active probe. */
-  retryProbe: () => void;
-  /** Change mode (bridge/gateway). */
-  setMode: (mode: OpenClawMode) => void;
-  /** Open the setup for the given mode. */
-  setupOpen: boolean;
-  setSetupOpen: (open: boolean) => void;
+type OpenClawDegradedProvider = {
+  credentialKey: string;
+  providerId: string;
+  reason: string;
 };
+
+type UseOpenClawConnectionReturn = {
+  readonly bridgeProbe: OpenClawBridgeProbeState;
+  readonly bridgeSettings: OpenClawGatewaySettings;
+  readonly bridgeUsable: boolean;
+  readonly degradedProviders: OpenClawDegradedProvider[];
+  readonly gatewayProbe: OpenClawProbeState;
+  readonly gatewaySettings: OpenClawGatewaySettings;
+  readonly gatewayUsable: boolean;
+  readonly isOpenClawConfigured: boolean;
+  readonly isOpenClawReady: boolean;
+  readonly mode: OpenClawMode;
+  readonly onBridgeSaved: (settings: OpenClawGatewaySettings, probeOk: boolean) => void;
+  readonly onGatewaySaved: (settings: OpenClawGatewaySettings) => void;
+  readonly retryProbe: () => void;
+  readonly setMode: (mode: OpenClawMode) => void;
+  readonly setSetupOpen: (open: boolean) => void;
+  readonly setupOpen: boolean;
+};
+
+function loadPersistedMode(): OpenClawMode | null {
+  if (typeof globalThis.window === "undefined") return null;
+  const stored = globalThis.localStorage.getItem("openclaw-mode");
+  if (stored === "gateway" || stored === "bridge") return stored;
+  return null;
+}
+
+function persistMode(mode: OpenClawMode) {
+  if (typeof globalThis.window === "undefined") return;
+  globalThis.localStorage.setItem("openclaw-mode", mode);
+}
+
+function recordOpenClawUsage(mode: OpenClawMode, action: string) {
+  if (typeof globalThis.window === "undefined") return;
+  void fetch("/api/openclaw/usage", {
+    body: JSON.stringify({ action, mode }),
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+    method: "POST",
+  }).catch(() => {
+    // Usage logs must never affect the chat flow.
+  });
+}
 
 /**
  * Encapsulates all OpenClaw connection state.
@@ -81,13 +98,14 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
   });
   const [bridgeProbe, setBridgeProbe] = useState<OpenClawBridgeProbeState>({ status: "idle" });
 
+  const [degradedProviders, setDegradedProviders] = useState<OpenClawDegradedProvider[]>([]);
   const [mode, setMode] = useState<OpenClawMode>("bridge");
   const [setupOpen, setSetupOpen] = useState(false);
 
   const bridgeProbeSkipRef = useRef(false);
   const autoDetectedRef = useRef(false);
+  const loggedModeRef = useRef<OpenClawMode | null>(null);
 
-  // --- Init: load settings from localStorage on mount ---
   useEffect(() => {
     const settings = loadOpenClawGatewaySettings();
     setGatewaySettings(settings);
@@ -100,44 +118,46 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
     setBridgeSettings(loadOpenClawBridgeSettings());
   }, []);
 
-  // --- Auto-detect: keep bridge as the primary default on first load ---
+  // Bridge e o modo padrao; o usuario opta por gateway via dialogo.
+  // Antes ha um probe assincrono cujos dois ramos chamavam setMode("bridge"),
+  // tornando o probe inutil — removido.
   useEffect(() => {
     if (autoDetectedRef.current) return;
     if (selectedProviderId !== OPENCLAW_PROVIDER_ID) return;
 
-    const savedMode = typeof window !== "undefined"
-      ? window.localStorage.getItem("openclaw-mode") as OpenClawMode | null
-      : null;
-    if (savedMode === "gateway" || savedMode === "bridge") {
-      setMode(savedMode);
-      autoDetectedRef.current = true;
+    const savedMode = loadPersistedMode();
+    setMode(savedMode ?? "bridge");
+    autoDetectedRef.current = true;
+  }, [selectedProviderId]);
+
+  useEffect(() => {
+    persistMode(mode);
+    if (selectedProviderId !== OPENCLAW_PROVIDER_ID) return;
+    if (loggedModeRef.current === mode) return;
+    loggedModeRef.current = mode;
+    recordOpenClawUsage(mode, "mode.active");
+  }, [mode, selectedProviderId]);
+
+  useEffect(() => {
+    if (selectedProviderId !== OPENCLAW_PROVIDER_ID) {
+      setDegradedProviders([]);
       return;
     }
 
-    // No saved mode — auto-detect by probing bridge first
-    const bridgeBase = loadOpenClawBridgeSettings().baseUrl || OPENCLAW_DEFAULT_BRIDGE;
-    let cancelled = false;
-    probeOpenClawBridge(normalizeGatewayBaseUrl(bridgeBase)).then((result) => {
-      if (cancelled) return;
-      if (result && result.bridge.status === "ok") {
-        setMode("bridge");
-      } else {
-        setMode("bridge");
-      }
-      autoDetectedRef.current = true;
-    });
-    return () => { cancelled = true; };
+    const controller = new AbortController();
+    void fetch("/openclaw/status", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = await response.json();
+        setDegradedProviders(Array.isArray(payload?.degradedProviders) ? payload.degradedProviders : []);
+      })
+      .catch(() => {
+        // Status degradation is advisory; ignore network/auth failures here.
+      });
+
+    return () => controller.abort();
   }, [selectedProviderId]);
 
-  // --- Persist mode to localStorage ---
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (mode) {
-      window.localStorage.setItem("openclaw-mode", mode);
-    }
-  }, [mode]);
-
-  // --- Auto-probe gateway when settings change ---
   useEffect(() => {
     const token = gatewaySettings.token.trim();
     if (!token) {
@@ -151,7 +171,7 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
 
     let cancelled = false;
     setGatewayProbe({ status: "loading" });
-    const tid = window.setTimeout(() => {
+    const tid = globalThis.setTimeout(() => {
       probeOpenClawGateway(gatewaySettings).then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -164,11 +184,10 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
 
     return () => {
       cancelled = true;
-      window.clearTimeout(tid);
+      globalThis.clearTimeout(tid);
     };
   }, [gatewaySettings, gatewaySettingsVersion, selectedProviderId]);
 
-  // --- Auto-probe bridge when settings change ---
   useEffect(() => {
     if (selectedProviderId !== OPENCLAW_PROVIDER_ID) return;
     if (!bridgeSettings.baseUrl.trim()) return;
@@ -180,10 +199,10 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
 
     let cancelled = false;
     setBridgeProbe({ status: "loading" });
-    const tid = window.setTimeout(() => {
+    const tid = globalThis.setTimeout(() => {
       probeOpenClawBridge(bridgeSettings.baseUrl).then((result) => {
         if (cancelled) return;
-        if (result && result.bridge.status === "ok") {
+        if (result?.bridge.status === "ok") {
           setBridgeProbe({ status: "ok" });
         } else {
           setBridgeProbe({ status: "error" });
@@ -193,17 +212,15 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
 
     return () => {
       cancelled = true;
-      window.clearTimeout(tid);
+      globalThis.clearTimeout(tid);
     };
   }, [selectedProviderId, bridgeSettings]);
 
-  // --- Computed flags ---
   const gatewayUsable = hasOpenClawGatewayToken(gatewaySettings) && gatewayProbe.status === "ok";
   const bridgeUsable = bridgeProbe.status === "ok";
   const isOpenClawReady = mode === "bridge" ? bridgeUsable : gatewayUsable;
   const isOpenClawConfigured = mode === "bridge" ? bridgeProbe.status === "ok" : gatewayProbe.status === "ok";
 
-  // --- Callbacks ---
   const onGatewaySaved = useCallback((settings: OpenClawGatewaySettings) => {
     setGatewaySettings(settings);
     setGatewaySettingsVersion((v) => v + 1);
@@ -220,7 +237,7 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
       const base = normalizeGatewayBaseUrl(bridgeSettings.baseUrl);
       setBridgeProbe({ status: "loading" });
       void probeOpenClawBridge(base).then((result) => {
-        if (result && result.bridge.status === "ok") {
+        if (result?.bridge.status === "ok") {
           setBridgeProbe({ status: "ok" });
           toast.success("OpenClaw local conectado.");
         } else {
@@ -247,6 +264,7 @@ export function useOpenClawConnection(selectedProviderId: string): UseOpenClawCo
     bridgeProbe,
     bridgeSettings,
     bridgeUsable,
+    degradedProviders,
     gatewayProbe,
     gatewaySettings,
     gatewayUsable,

@@ -6,6 +6,7 @@ type CacheEntry = {
 }
 
 const cache = new Map<string, CacheEntry>()
+const inflightRefreshes = new Map<string, Promise<void>>()
 
 /** Default TTL: 1 hour */
 export const DEFAULT_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
@@ -28,6 +29,20 @@ function fullCacheKey(providerId: string, suffix: string | undefined): string {
   return s ? `${providerId}:${s}` : providerId
 }
 
+function dedupeModels(models: readonly ProviderModel[]): ProviderModel[] {
+  const seen = new Set<string>()
+  const out: ProviderModel[] = []
+  for (const model of models) {
+    const id = model.id.trim()
+    if (!id || seen.has(id)) {
+      continue
+    }
+    seen.add(id)
+    out.push({ ...model, id })
+  }
+  return out
+}
+
 /**
  * Get cached models for a provider, or fetch them dynamically.
  * Falls back to `fallbackModels` if the upstream fetch fails.
@@ -46,42 +61,53 @@ export async function getCachedModels(
 
   // Return cached if still valid
   if (entry && now - entry.fetchedAt < ttlMs) {
-    return entry.models
+    return dedupeModels(entry.models)
   }
 
   // Fetch in background if cache is stale but exists (serve stale while refreshing)
   if (entry && staleWhileRevalidate) {
     refreshInBackground(cacheKey, fetchFn)
-    return entry.models
+    return dedupeModels(entry.models)
   }
 
   // No cache at all — or stale with sync revalidate — fetch synchronously
   try {
     const models = await fetchFn()
     if (models.length > 0) {
-      cache.set(cacheKey, { models, fetchedAt: now })
-      return models
+      const deduped = dedupeModels(models)
+      cache.set(cacheKey, { models: deduped, fetchedAt: now })
+      return deduped
     }
   } catch (error) {
     console.warn(`[ModelCache] Failed to fetch models for ${cacheKey}:`, error instanceof Error ? error.message : error)
   }
 
   // Return fallback
-  return [...fallbackModels]
+  return dedupeModels(fallbackModels)
 }
 
 function refreshInBackground(
   cacheKey: string,
   fetchFn: () => Promise<ProviderModel[]>,
 ) {
-  fetchFn()
+  if (inflightRefreshes.has(cacheKey)) {
+    return
+  }
+
+  const task = fetchFn()
     .then((models) => {
       if (models.length > 0) {
-        cache.set(cacheKey, { models, fetchedAt: Date.now() })
-        console.log(`[ModelCache] Refreshed ${cacheKey}: ${models.length} models`)
+        const deduped = dedupeModels(models)
+        cache.set(cacheKey, { models: deduped, fetchedAt: Date.now() })
+        console.log(`[ModelCache] Refreshed ${cacheKey}: ${deduped.length} models`)
       }
     })
     .catch((error) => {
       console.warn(`[ModelCache] Background refresh failed for ${cacheKey}:`, error instanceof Error ? error.message : error)
     })
+    .finally(() => {
+      inflightRefreshes.delete(cacheKey)
+    })
+
+  inflightRefreshes.set(cacheKey, task)
 }
