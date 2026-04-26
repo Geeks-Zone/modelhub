@@ -24,6 +24,22 @@ export function providerHasRequiredCredentials(
   return requiredKeys.every((key) => available.has(key));
 }
 
+export function sortProvidersByConfiguredCredentials(
+  providers: UiProvider[],
+  credentials: ProviderCredentialSummary[],
+): UiProvider[] {
+  return [...providers].sort((a, b) => {
+    const aConfigured = providerHasRequiredCredentials(a, credentials);
+    const bConfigured = providerHasRequiredCredentials(b, credentials);
+
+    if (aConfigured === bConfigured) {
+      return 0;
+    }
+
+    return aConfigured ? -1 : 1;
+  });
+}
+
 export function providerCredentialIds(
   providerId: string,
   credentials: ProviderCredentialSummary[],

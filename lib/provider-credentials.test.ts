@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { providerHasRequiredCredentials } from "./provider-credentials";
+import { providerHasRequiredCredentials, sortProvidersByConfiguredCredentials } from "./provider-credentials";
 
 describe("providerHasRequiredCredentials", () => {
   it("returns true for providers without required keys", () => {
@@ -67,5 +67,42 @@ describe("providerHasRequiredCredentials", () => {
         ],
       ),
     ).toBe(true);
+  });
+
+  it("sorts providers with configured credentials first", () => {
+    const providers = [
+      {
+        base: "/openrouter",
+        hasModels: true,
+        id: "openrouter",
+        label: "OpenRouter",
+        requiredKeys: [{ envName: "OPENROUTER_API_KEY", label: "API Key", placeholder: "sk-or-..." }],
+      },
+      {
+        base: "/groq",
+        hasModels: true,
+        id: "groq",
+        label: "Groq",
+        requiredKeys: [{ envName: "GROQ_API_KEY", label: "API Key", placeholder: "gsk_..." }],
+      },
+      {
+        base: "/mistral",
+        hasModels: true,
+        id: "mistral",
+        label: "Mistral",
+        requiredKeys: [{ envName: "MISTRAL_API_KEY", label: "API Key", placeholder: "..." }],
+      },
+    ];
+
+    expect(
+      sortProvidersByConfiguredCredentials(providers, [
+        {
+          credentialKey: "GROQ_API_KEY",
+          id: "1",
+          providerId: "groq",
+          updatedAt: new Date().toISOString(),
+        },
+      ]).map((provider) => provider.id),
+    ).toEqual(["groq", "openrouter", "mistral"]);
   });
 });
