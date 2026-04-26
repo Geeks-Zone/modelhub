@@ -107,7 +107,11 @@ import {
   MAX_TOTAL_ATTACHMENT_BYTES,
 } from "@/lib/chat-attachments";
 import { parseChatStream, type ParsedToolCall } from "@/lib/chat-stream";
-import { providerCredentialIds, providerHasRequiredCredentials } from "@/lib/provider-credentials";
+import {
+  providerCredentialIds,
+  providerHasRequiredCredentials,
+  sortProvidersByConfiguredCredentials,
+} from "@/lib/provider-credentials";
 import { cn } from "@/lib/utils";
 
 type ConversationMessage = {
@@ -364,8 +368,19 @@ export function ChatPage() {
     [providers],
   );
   const providersWithApiKey = useMemo(
-    () => providers.filter((p) => (p.requiredKeys?.length ?? 0) > 0),
-    [providers],
+    () => sortProvidersByConfiguredCredentials(
+      providers.filter((p) => (p.requiredKeys?.length ?? 0) > 0),
+      credentials,
+    ),
+    [credentials, providers],
+  );
+  const configuredProvidersWithApiKey = useMemo(
+    () => providersWithApiKey.filter((provider) => providerHasRequiredCredentials(provider, credentials)),
+    [credentials, providersWithApiKey],
+  );
+  const unconfiguredProvidersWithApiKey = useMemo(
+    () => providersWithApiKey.filter((provider) => !providerHasRequiredCredentials(provider, credentials)),
+    [credentials, providersWithApiKey],
   );
   const selectedProviderReady =
     selectedProviderId === OPENCLAW_PROVIDER_ID
@@ -1636,6 +1651,23 @@ export function ChatPage() {
               <SelectValue placeholder="Provider" />
             </SelectTrigger>
             <SelectContent>
+              {configuredProvidersWithApiKey.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Configurados</SelectLabel>
+                  {configuredProvidersWithApiKey.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">{provider.label}</span>
+                        <CheckIcon
+                          className="size-3 shrink-0 text-emerald-600/65 dark:text-emerald-500/70"
+                          aria-label="Configurado"
+                        />
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {configuredProvidersWithApiKey.length > 0 ? <SelectSeparator /> : null}
               {providersWithoutApiKey.length > 0 && (
                 <SelectGroup>
                   <SelectLabel>Sem chave de API</SelectLabel>
@@ -1671,11 +1703,11 @@ export function ChatPage() {
                   );
                 })()}
               </SelectGroup>
-              {providersWithApiKey.length > 0 ? <SelectSeparator /> : null}
-              {providersWithApiKey.length > 0 && (
+              {unconfiguredProvidersWithApiKey.length > 0 ? <SelectSeparator /> : null}
+              {unconfiguredProvidersWithApiKey.length > 0 && (
                 <SelectGroup>
                   <SelectLabel>Com chave de API</SelectLabel>
-                  {providersWithApiKey.map((provider) => {
+                  {unconfiguredProvidersWithApiKey.map((provider) => {
                     const check = showConfiguredCheck(provider);
                     return (
                       <SelectItem key={provider.id} value={provider.id}>

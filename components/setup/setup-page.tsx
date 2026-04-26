@@ -27,7 +27,11 @@ import { Input } from "@/components/ui/input";
 
 import { apiJsonRequest, testProviderCredentials } from "@/lib/api";
 import type { UiProvider } from "@/lib/contracts";
-import { providerCredentialIds, providerHasRequiredCredentials } from "@/lib/provider-credentials";
+import {
+  providerCredentialIds,
+  providerHasRequiredCredentials,
+  sortProvidersByConfiguredCredentials,
+} from "@/lib/provider-credentials";
 
 export function SetupPage() {
   const { credentials, providers, refreshCredentials } = useAppState();
@@ -43,8 +47,11 @@ export function SetupPage() {
     [providers],
   );
   const paidProviders = useMemo(
-    () => providers.filter((p) => (p.requiredKeys?.length ?? 0) > 0),
-    [providers],
+    () => sortProvidersByConfiguredCredentials(
+      providers.filter((p) => (p.requiredKeys?.length ?? 0) > 0),
+      credentials,
+    ),
+    [credentials, providers],
   );
   const configuredCount = useMemo(
     () => paidProviders.filter((p) => providerHasRequiredCredentials(p, credentials)).length,
