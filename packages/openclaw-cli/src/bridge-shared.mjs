@@ -52,12 +52,20 @@ export function corsHeaders(origin) {
   return headers;
 }
 
-/** Extrai o Bearer token de um cabeçalho `authorization`. Retorna '' se ausente. */
+/**
+ * Extrai o Bearer token de um cabecalho `authorization`. Retorna '' se ausente.
+ *
+ * O regex usa `(\S\S*)` em vez de `(.+)` para que `\s+` e o capture group nao
+ * compitam pelos mesmos caracteres de whitespace — entrada como
+ * `"Bearer            "` (sem token) faria backtracking polinomial com `(.+)`
+ * (CodeQL js/polynomial-redos). Exigir nao-whitespace no inicio do grupo
+ * deixa a fronteira deterministica.
+ */
 export function extractBearerToken(authHeader) {
   if (typeof authHeader !== 'string' || !authHeader) {
     return '';
   }
-  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+  const match = /^Bearer\s+(\S\S*)$/i.exec(authHeader.trim());
   return match ? match[1].trim() : '';
 }
 
