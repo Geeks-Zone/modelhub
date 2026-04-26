@@ -1,11 +1,35 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 import { buildGatewayConnectParams } from './gateway-auth.mjs';
 
 const RPC_TIMEOUT_MS = 30000;
-const CONNECT_TIMEOUT_MS = 10000;
-const RECONNECT_DELAY_MS = 3000;
-const CLIENT_VERSION = '2.0.3';
+const CONNECT_TIMEOUT_MS = 25000;
+const HEARTBEAT_INTERVAL_MS = 20000;
+const HEARTBEAT_MAX_MISSES = 2;
+const RECONNECT_BASE_DELAY_MS = 3000;
+const RECONNECT_MAX_DELAY_MS = 60000;
+const SESSION_GET_TIMEOUT_MS = 2500;
+const UNKNOWN_CLIENT_VERSION = ['0', '0', '0'].join('.');
+
+/**
+ * Le a versao do package.json em build-time. Antes era hardcoded como '2.0.14'
+ * e dessincronizava da versao publicada toda vez que esquecia-se de atualizar.
+ */
+function readPackageVersion() {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const raw = readFileSync(path.join(here, '..', 'package.json'), 'utf8');
+    const pkg = JSON.parse(raw);
+    return typeof pkg?.version === 'string' && pkg.version ? pkg.version : UNKNOWN_CLIENT_VERSION;
+  } catch {
+    return UNKNOWN_CLIENT_VERSION;
+  }
+}
+
+const CLIENT_VERSION = readPackageVersion();
 const DEFAULT_CLIENT_ID = 'gateway-client';
 const DEFAULT_CLIENT_MODE = 'backend';
 
@@ -128,9 +152,14 @@ export class GatewayClient {
   #connectPromise = null;
   #disposed = false;
   #eventHandlers = new Set();
+  #heartbeatMisses = 0;
+  #heartbeatTimer = null;
   #hello = null;
+  #lastError = null;
   #log;
+  #reconnectAttempt = 0;
   #reconnectTimer = null;
+  #reconnecting = false;
   #requestMap = new Map();
   #sessionHandlers = new Map();
   #token;
@@ -151,6 +180,15 @@ export class GatewayClient {
     return this.#hello;
   }
 
+  get status() {
+    return {
+      connected: this.#connected,
+      lastError: this.#lastError,
+      reconnectAttempt: this.#reconnectAttempt,
+      reconnecting: this.#reconnecting || Boolean(this.#reconnectTimer),
+    };
+  }
+
   async connect() {
     if (this.#connected && this.#ws?.readyState === 1) {
       return;
@@ -168,11 +206,8 @@ export class GatewayClient {
   }
 
   async #doConnect() {
-    let WebSocketClass = globalThis.WebSocket;
-    if (!WebSocketClass) {
-      const mod = await import('ws');
-      WebSocketClass = mod.WebSocket || mod.default || mod;
-    }
+    const mod = await import('ws');
+    const WebSocketClass = mod.WebSocket || mod.default || mod;
 
     return new Promise((resolve, reject) => {
       const ws = new WebSocketClass(this.#url);
@@ -180,13 +215,29 @@ export class GatewayClient {
       let challengeNonce = null;
       let connectSent = false;
       let settled = false;
+      const connectTimeout = setTimeout(() => {
+        if (!settled) {
+          const timeoutError = new Error('Connection timeout');
+          this.#lastError = timeoutError.message;
+          settleReject(timeoutError);
+          try {
+            ws.close();
+          } catch {
+            // ignore
+          }
+        }
+      }, CONNECT_TIMEOUT_MS);
+      connectTimeout.unref?.();
 
       const settleReject = (error) => {
         if (settled) {
           return;
         }
         settled = true;
-        reject(normalizeError(error, 'Gateway connect failed'));
+        clearTimeout(connectTimeout);
+        const normalized = normalizeError(error, 'Gateway connect failed');
+        this.#lastError = normalized.message;
+        reject(normalized);
       };
 
       const settleResolve = () => {
@@ -194,6 +245,7 @@ export class GatewayClient {
           return;
         }
         settled = true;
+        clearTimeout(connectTimeout);
         resolve();
       };
 
@@ -235,6 +287,10 @@ export class GatewayClient {
         if (msg?.type === 'res' && msg?.ok === true && msg?.payload?.type === 'hello-ok') {
           this.#connected = true;
           this.#hello = msg.payload;
+          this.#lastError = null;
+          this.#reconnectAttempt = 0;
+          this.#reconnecting = false;
+          this.#startHeartbeat(ws);
           this.#log.info('[gw] Connected to gateway');
           settleResolve();
           return;
@@ -245,10 +301,18 @@ export class GatewayClient {
         }
       });
 
+      ws.on?.('pong', () => {
+        this.#heartbeatMisses = 0;
+      });
+
       ws.addEventListener('close', (event) => {
         const error = new Error(`WS closed: ${event.code}`);
         this.#connected = false;
-        this.#ws = null;
+        this.#lastError = error.message;
+        this.#stopHeartbeat(ws);
+        if (this.#ws === ws) {
+          this.#ws = null;
+        }
         this.#hello = null;
         for (const [, entry] of this.#requestMap) {
           entry.reject(error);
@@ -265,23 +329,13 @@ export class GatewayClient {
 
       ws.addEventListener('error', (event) => {
         const message = event?.message || 'WS error';
+        this.#lastError = message;
         if (!settled) {
           settleReject(new Error(message));
         } else {
           this.#log.warn('[gw] Error:', message);
         }
       });
-
-      setTimeout(() => {
-        if (!settled) {
-          settleReject(new Error('Connection timeout'));
-          try {
-            ws.close();
-          } catch {
-            // ignore
-          }
-        }
-      }, CONNECT_TIMEOUT_MS);
     });
   }
 
@@ -289,21 +343,75 @@ export class GatewayClient {
     if (this.#reconnectTimer || this.#disposed) {
       return;
     }
+    this.#reconnecting = true;
+    const attempt = this.#reconnectAttempt;
+    const delay = Math.min(
+      RECONNECT_MAX_DELAY_MS,
+      RECONNECT_BASE_DELAY_MS * Math.pow(2, attempt),
+    );
+    this.#reconnectAttempt = attempt + 1;
     this.#reconnectTimer = setTimeout(async () => {
       this.#reconnectTimer = null;
       try {
         await this.connect();
         for (const sessionKey of this.#sessionHandlers.keys()) {
           try {
-            await this.request('sessions.messages.subscribe', { sessionKey });
+            await this.request('sessions.messages.subscribe', { key: sessionKey });
           } catch (error) {
             this.#log.warn(`[gw] Failed to restore session subscription ${sessionKey}:`, normalizeError(error, 'subscribe').message);
           }
         }
       } catch (error) {
-        this.#log.warn('[gw] Reconnect failed:', normalizeError(error, 'reconnect').message);
+        const normalized = normalizeError(error, 'reconnect');
+        this.#lastError = normalized.message;
+        this.#log.warn('[gw] Reconnect failed:', normalized.message);
+        this.#scheduleReconnect();
       }
-    }, RECONNECT_DELAY_MS);
+    }, delay);
+  }
+
+  #startHeartbeat(ws) {
+    this.#stopHeartbeat(ws);
+    this.#heartbeatMisses = 0;
+    this.#heartbeatTimer = setInterval(() => {
+      if (this.#ws !== ws || ws.readyState !== 1) {
+        return;
+      }
+
+      if (this.#heartbeatMisses >= HEARTBEAT_MAX_MISSES) {
+        this.#lastError = 'Gateway heartbeat missed';
+        if (typeof ws.terminate === 'function') {
+          ws.terminate();
+        } else {
+          ws.close();
+        }
+        return;
+      }
+
+      this.#heartbeatMisses += 1;
+      try {
+        ws.ping();
+      } catch (error) {
+        this.#lastError = normalizeError(error, 'Gateway heartbeat failed').message;
+        if (typeof ws.terminate === 'function') {
+          ws.terminate();
+        } else {
+          ws.close();
+        }
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+    this.#heartbeatTimer.unref?.();
+  }
+
+  #stopHeartbeat(ws) {
+    if (ws && this.#ws !== ws) {
+      return;
+    }
+    if (this.#heartbeatTimer) {
+      clearInterval(this.#heartbeatTimer);
+      this.#heartbeatTimer = null;
+    }
+    this.#heartbeatMisses = 0;
   }
 
   #handleMessage(msg) {
@@ -379,12 +487,32 @@ export class GatewayClient {
         },
       });
 
-      this.#ws.send(JSON.stringify({
-        id,
-        method,
-        params,
-        type: 'req',
-      }));
+      // Entre await connect() e send, o close handler pode ter zerado #ws.
+      // Sem essa defesa, send() em null gera TypeError nao tratavel pelo caller.
+      const ws = this.#ws;
+      if (ws?.readyState !== 1) {
+        this.#requestMap.delete(id);
+        if (timer) {
+          clearTimeout(timer);
+        }
+        reject(new Error(`Gateway WS not ready for ${method}`));
+        return;
+      }
+
+      try {
+        ws.send(JSON.stringify({
+          id,
+          method,
+          params,
+          type: 'req',
+        }));
+      } catch (error) {
+        this.#requestMap.delete(id);
+        if (timer) {
+          clearTimeout(timer);
+        }
+        reject(normalizeError(error, `Gateway send failed: ${method}`));
+      }
     });
   }
 
@@ -413,12 +541,14 @@ export class GatewayClient {
         : [];
   }
 
-  async sessionGet(sessionKey) {
+  async sessionGet(sessionKey, options = {}) {
     if (!sessionKey) {
       return null;
     }
     try {
-      const payload = await this.request('sessions.get', { key: sessionKey });
+      const payload = await this.request('sessions.get', { key: sessionKey }, {
+        timeout: options.timeout ?? SESSION_GET_TIMEOUT_MS,
+      });
       return extractSessionResponse(payload);
     } catch {
       return null;
@@ -476,11 +606,16 @@ export class GatewayClient {
     }
   }
 
-  async approvalResolve(approvalId, approved) {
-    return this.request('exec.approval.resolve', {
+  async approvalResolve(approvalId, approved, reason) {
+    const params = {
       decision: approved === false ? 'deny' : 'allow-once',
       id: approvalId,
-    });
+    };
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+    if (trimmedReason) {
+      params.reason = trimmedReason;
+    }
+    return this.request('exec.approval.resolve', params);
   }
 
   async subscribeSession(sessionKey, handler) {
@@ -489,10 +624,19 @@ export class GatewayClient {
     }
 
     let handlers = this.#sessionHandlers.get(sessionKey);
-    if (!handlers) {
+    const isFirstSubscriber = !handlers;
+    if (isFirstSubscriber) {
       handlers = new Set();
       this.#sessionHandlers.set(sessionKey, handlers);
-      await this.request('sessions.messages.subscribe', { key: sessionKey });
+      try {
+        await this.request('sessions.messages.subscribe', { key: sessionKey });
+      } catch (error) {
+        // Reverte para evitar estado fantasma: sem o subscribe RPC, o
+        // gateway nao envia eventos e o Map continuaria com o set vazio,
+        // fazendo a proxima chamada pular o subscribe definitivamente.
+        this.#sessionHandlers.delete(sessionKey);
+        throw error;
+      }
     }
 
     handlers.add(handler);
@@ -527,12 +671,14 @@ export class GatewayClient {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
     }
+    this.#stopHeartbeat(this.#ws);
     if (this.#ws) {
       this.#ws.close();
       this.#ws = null;
     }
     this.#connected = false;
     this.#hello = null;
+    this.#reconnecting = false;
     this.#sessionHandlers.clear();
   }
 }

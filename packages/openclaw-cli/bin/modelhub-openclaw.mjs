@@ -2,7 +2,9 @@
 
 import { runStandaloneCli } from '../src/index.mjs';
 
-runStandaloneCli().catch((error) => {
+try {
+  await runStandaloneCli();
+} catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
-});
+}

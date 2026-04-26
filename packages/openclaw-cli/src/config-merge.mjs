@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import {
   buildProviderBaseUrl,
   buildProviderConfig,
+  sanitizeProviderModels,
   toOpenClawModelRef,
 } from './utils.mjs';
 
@@ -32,7 +33,9 @@ export async function loadJsonFile(filePath) {
 
 export async function writeJsonFile(filePath, data) {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  // 0o600: o arquivo guarda apiKey/token em texto claro; restringimos leitura
+  // ao dono para reduzir o blast radius em sistemas multiusuario.
+  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
 export async function backupJsonFile(filePath) {
@@ -42,6 +45,7 @@ export async function backupJsonFile(filePath) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `${filePath}.${stamp}.bak`;
   await copyFile(filePath, backupPath);
+  await chmod(backupPath, 0o600);
   return backupPath;
 }
 
@@ -103,20 +107,58 @@ function mergeModelAliases(existingAliases, catalog, providerId) {
   return nextAliases;
 }
 
-function selectPrimaryModel(nextConfig, providerId, catalog, selectedModelId) {
-  const currentPrimary = nextConfig?.agents?.defaults?.model?.primary;
+/**
+ * Algoritmo unico de selecao de modelo primario, compartilhado por
+ * `mergeConfig`, `runSync`, `buildSyncedOpenClawConfig`. Antes existiam tres
+ * implementacoes que disputavam (primary do servidor x do config local x do
+ * preset coding) e produziam resultados diferentes para o mesmo input.
+ *
+ * Ordem de prioridade:
+ *   1. preferredModelId explicito (vindo de --model ou flag).
+ *   2. primary atual do config local, se ainda existir no catalogo.
+ *   3. selectedModelId do preset (ex: recomendacao de "coding").
+ *   4. primeiro modelo do catalogo.
+ *
+ * Retorna a referencia ja prefixada com providerId.
+ */
+export function selectPrimaryModelRef({
+  catalog,
+  currentPrimary,
+  preferredModelId,
+  providerId,
+  selectedModelId,
+}) {
   const validRefs = new Set(catalog.map((model) => toOpenClawModelRef(providerId, model.unifiedModelId)));
+  const prefix = `${providerId}/`;
+  const stripPrefix = (ref) => (typeof ref === 'string' && ref.startsWith(prefix) ? ref.slice(prefix.length) : ref);
 
-  if (currentPrimary && validRefs.has(currentPrimary)) {
-    return currentPrimary;
+  const ensureRef = (modelIdOrRef) => {
+    if (!modelIdOrRef) return '';
+    const id = stripPrefix(String(modelIdOrRef));
+    return id ? toOpenClawModelRef(providerId, id) : '';
+  };
+
+  const candidates = [
+    ensureRef(preferredModelId),
+    currentPrimary && validRefs.has(currentPrimary) ? currentPrimary : '',
+    ensureRef(selectedModelId),
+    catalog[0]?.unifiedModelId ? toOpenClawModelRef(providerId, catalog[0].unifiedModelId) : '',
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate) return candidate;
   }
+  return currentPrimary ?? null;
+}
 
-  if (selectedModelId) {
-    return toOpenClawModelRef(providerId, selectedModelId);
-  }
-
-  const firstCatalogModel = catalog[0]?.unifiedModelId;
-  return firstCatalogModel ? toOpenClawModelRef(providerId, firstCatalogModel) : currentPrimary ?? null;
+function selectPrimaryModel(nextConfig, providerId, catalog, selectedModelId) {
+  return selectPrimaryModelRef({
+    catalog,
+    currentPrimary: nextConfig?.agents?.defaults?.model?.primary,
+    preferredModelId: '',
+    providerId,
+    selectedModelId,
+  });
 }
 
 export function upsertRuntimeConfig(localConfig, { apiKeyValue, providerId, serviceBaseUrl }) {
@@ -132,7 +174,7 @@ export function upsertRuntimeConfig(localConfig, { apiKeyValue, providerId, serv
     api: existingProvider.api || 'openai-completions',
     apiKey: apiKeyValue,
     baseUrl: buildProviderBaseUrl(serviceBaseUrl),
-    models: Array.isArray(existingProvider.models) ? existingProvider.models : [],
+    models: sanitizeProviderModels(existingProvider.models),
   };
 
   next.gateway ??= {};

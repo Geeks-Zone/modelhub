@@ -2,8 +2,8 @@ import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
 export const models = [
-  { capabilities: { documents: true, images: false }, id: 'mistral-small-latest', name: 'Mistral Small Latest' },
-  { capabilities: { documents: true, images: false }, id: 'ministral-3b-latest', name: 'Ministral 3B Latest' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'mistral-small-latest', name: 'Mistral Small Latest' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'ministral-3b-latest', name: 'Ministral 3B Latest' },
 ]
 
 const app = createProviderApp({

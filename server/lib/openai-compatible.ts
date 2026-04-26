@@ -158,8 +158,24 @@ function isUpstreamModelNotFound(status: number, errorText: string): boolean {
   return (
     errorText.includes('model_not_found') ||
     errorText.includes('"code":"model_not_found"') ||
-    errorText.includes('does not exist or you do not have access')
+    errorText.includes('does not exist or you do not have access') ||
+    errorText.includes('Not found for account') ||
+    (errorText.includes('Function ') && errorText.includes('Not found'))
   )
+}
+
+function dedupeProviderModels(models: ProviderModel[]): ProviderModel[] {
+  const seen = new Set<string>()
+  const out: ProviderModel[] = []
+  for (const model of models) {
+    const id = model.id.trim()
+    if (!id || seen.has(id)) {
+      continue
+    }
+    seen.add(id)
+    out.push({ ...model, id })
+  }
+  return out
 }
 
 async function responseFromSuccessfulUpstream(
@@ -433,14 +449,15 @@ export function createOpenAiFetchModels(opts: {
 
     const filtered = opts.filter ? json.data.filter(opts.filter) : json.data
 
-    return filtered.map((m) => ({
+    return dedupeProviderModels(filtered.map((m) => ({
       capabilities: {
         documents: true,
         images: hasImageCapability(m),
+        tools: true,
       },
       id: m.id,
       name: `${m.id} (${opts.providerName})`,
-    }))
+    })))
   }
 }
 
@@ -496,6 +513,19 @@ function getUpstreamErrorGuidance(
         '- Aguarde alguns segundos e tente novamente',
         '- Modelos gratuitos (`:free`) têm limites mais baixos',
         '- Para limites maiores, adicione sua própria API key em https://openrouter.ai/settings/integrations',
+      ].join('\n')
+    }
+  }
+
+  if (providerName === 'NVIDIA NIM') {
+    if (status === 404 && isUpstreamModelNotFound(status, errorText)) {
+      return [
+        '**Modelo NVIDIA NIM indisponível para esta chave**\n',
+        'A API da NVIDIA listou o modelo, mas o endpoint de chat retornou 404 para a função interna desse modelo na sua conta.',
+        '**O que fazer:**',
+        '- Tente outro modelo NVIDIA NIM no seletor',
+        '- O ModelHub tenta fallback automático para modelos NIM mais estáveis quando possível',
+        '- Se o erro persistir, gere uma nova chave em build.nvidia.com e confirme que ela pertence ao mesmo projeto/conta',
       ].join('\n')
     }
   }

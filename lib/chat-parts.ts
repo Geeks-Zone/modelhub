@@ -9,6 +9,7 @@ export type AttachmentExtractionStatus =
 export type ProviderModelCapabilities = {
   documents: boolean;
   images: boolean;
+  tools?: boolean;
 };
 
 export type AttachmentReferencePart = {

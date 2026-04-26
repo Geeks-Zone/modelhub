@@ -11,7 +11,7 @@ import {
 import { parseQuillbotUpstreamToAiStream } from '../lib/quillbot-stream'
 import { ensureDebugAccess, isProductionEnv } from '../lib/security'
 
-export const QUILLBOT_MODELS = [{ capabilities: { documents: true, images: false }, id: 'quillbot-ai', name: 'Quillbot AI Chat' }]
+export const QUILLBOT_MODELS = [{ capabilities: { documents: true, images: false, tools: false }, id: 'quillbot-ai', name: 'Quillbot AI Chat' }]
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
 /** Override via `QUILLBOT_WEBAPP_VERSION` if Quillbot bumps the webapp and chat starts failing. */

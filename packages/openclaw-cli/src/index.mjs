@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
@@ -17,6 +17,7 @@ import {
   derivePersistedApiKeyValue,
   resolveCredentials,
 } from './credentials.mjs';
+import { selectPrimaryModelRef } from './config-merge.mjs';
 
 export {
   parseFlags,
@@ -75,7 +76,8 @@ async function loadJsonFile(filePath) {
 
 async function writeJsonFile(filePath, data) {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  // 0o600 protege apiKey/token persistidos no openclaw.json em hosts multiusuario.
+  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
 async function backupJsonFile(filePath) {
@@ -86,6 +88,7 @@ async function backupJsonFile(filePath) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `${filePath}.${stamp}.bak`;
   await copyFile(filePath, backupPath);
+  await chmod(backupPath, 0o600);
   return backupPath;
 }
 
@@ -306,10 +309,19 @@ export function buildSyncedOpenClawConfig(
       ? remoteConfig.agents.defaults.model
       : {};
 
-  const preferredBackendModelId = normalizeBackendModelId(preferredModelId, providerId);
-  const remotePrimaryBackendModelId = normalizeBackendModelId(remoteModelConfig.primary, providerId);
-  const primaryBackendModelId =
-    preferredBackendModelId || remotePrimaryBackendModelId || normalizedModels[0]?.id || '';
+  // Selecao de primary delegada ao helper unico em config-merge.mjs.
+  // O catalogo "sintetico" abaixo casa o formato esperado pelo helper.
+  const syntheticCatalog = normalizedModels.map((model) => ({ unifiedModelId: model.id }));
+  const primaryRef = selectPrimaryModelRef({
+    catalog: syntheticCatalog,
+    currentPrimary: typeof currentModelConfig.primary === 'string' ? currentModelConfig.primary : '',
+    preferredModelId,
+    providerId,
+    selectedModelId: typeof remoteModelConfig.primary === 'string' ? remoteModelConfig.primary : '',
+  });
+  const primaryBackendModelId = typeof primaryRef === 'string' && primaryRef.startsWith(`${providerId}/`)
+    ? primaryRef.slice(providerId.length + 1)
+    : '';
 
   const fallbackModelRefs = Array.isArray(remoteModelConfig.fallbacks)
     ? [...new Set(
@@ -382,6 +394,64 @@ async function requestJson(serviceBaseUrl, route, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   return { ok: response.ok, payload, status: response.status };
+}
+
+function isUsableOpenClawManifest(payload) {
+  return payload
+    && typeof payload === 'object'
+    && Array.isArray(payload?.catalog?.models)
+    && payload.config
+    && typeof payload.config === 'object';
+}
+
+function catalogPayloadFromManifest(payload) {
+  const catalog = payload?.catalog ?? {};
+  return {
+    generatedAt: payload?.generatedAt,
+    models: Array.isArray(catalog.models) ? catalog.models : [],
+    presets: Array.isArray(catalog.presets) ? catalog.presets : [],
+    summary: catalog.summary ?? payload?.coverage ?? {},
+  };
+}
+
+async function requestOpenClawManifest(serviceBaseUrl, options = {}) {
+  const result = await requestJson(serviceBaseUrl, '/openclaw/manifest', options);
+  if (result.ok && isUsableOpenClawManifest(result.payload)) {
+    return result;
+  }
+  return { ...result, ok: false };
+}
+
+async function requestOpenClawCatalog(serviceBaseUrl, options = {}) {
+  const manifest = await requestOpenClawManifest(serviceBaseUrl, options);
+  if (manifest.ok) {
+    return {
+      ok: true,
+      payload: catalogPayloadFromManifest(manifest.payload),
+      status: manifest.status,
+    };
+  }
+  return requestJson(serviceBaseUrl, '/openclaw/catalog', options);
+}
+
+async function requestOpenClawConfig(serviceBaseUrl, options = {}) {
+  const manifest = await requestOpenClawManifest(serviceBaseUrl, options);
+  if (manifest.ok) {
+    return {
+      ok: true,
+      payload: manifest.payload.config,
+      status: manifest.status,
+    };
+  }
+  return requestJson(serviceBaseUrl, '/openclaw/config', options);
+}
+
+async function requestOpenClawStatus(serviceBaseUrl, options = {}) {
+  const manifest = await requestOpenClawManifest(serviceBaseUrl, options);
+  if (manifest.ok) {
+    return manifest;
+  }
+  return requestJson(serviceBaseUrl, '/openclaw/status', options);
 }
 
 function selectRecommendedModel(catalogPayload, preferredModel) {
@@ -491,14 +561,7 @@ async function runSetup(args) {
     }
   }
 
-  const discovery = await requestJson(serviceBaseUrl, '/openclaw/discovery', { apiKey });
-  if (!discovery.ok) {
-    console.error(`Falha no discovery (${discovery.status}).`, discovery.payload?.error ?? '');
-    process.exitCode = 1;
-    return;
-  }
-
-  const catalogResult = await requestJson(serviceBaseUrl, '/openclaw/catalog', { apiKey });
+  const catalogResult = await requestOpenClawCatalog(serviceBaseUrl, { apiKey });
   if (!catalogResult.ok) {
     console.error(`Falha no catalogo (${catalogResult.status}).`, catalogResult.payload?.error ?? '');
     process.exitCode = 1;
@@ -562,14 +625,14 @@ async function runLogin(args) {
     return;
   }
 
-  const status = await requestJson(serviceBaseUrl, '/openclaw/status', { apiKey });
+  const status = await requestOpenClawStatus(serviceBaseUrl, { apiKey });
   if (!status.ok) {
     console.error(`Falha ao validar login (${status.status}).`, status.payload?.error ?? '');
     process.exitCode = 1;
     return;
   }
 
-  const catalogResult = await requestJson(serviceBaseUrl, '/openclaw/catalog', { apiKey });
+  const catalogResult = await requestOpenClawCatalog(serviceBaseUrl, { apiKey });
   const currentModelId = getSelectedBackendModelId(existingConfig, providerId);
   const selectedModelId = selectRecommendedModel(catalogResult.payload, flags.model || currentModelId);
   if (!selectedModelId) {
@@ -617,7 +680,7 @@ async function runModels(args) {
     return;
   }
 
-  const result = await requestJson(serviceBaseUrl, '/openclaw/catalog', { apiKey });
+  const result = await requestOpenClawCatalog(serviceBaseUrl, { apiKey });
   if (!result.ok) {
     console.error(`Falha ao listar modelos (${result.status}).`, result.payload?.error ?? '');
     process.exitCode = 1;
@@ -652,7 +715,7 @@ async function runSync(args) {
     return;
   }
 
-  const configResult = await requestJson(serviceBaseUrl, '/openclaw/config', { apiKey });
+  const configResult = await requestOpenClawConfig(serviceBaseUrl, { apiKey });
   if (!configResult.ok) {
     console.error(`Falha ao obter config (${configResult.status}).`, configResult.payload?.error ?? '');
     process.exitCode = 1;
@@ -781,13 +844,13 @@ async function runDoctor(args) {
     return;
   }
 
-  const discovery = await requestJson(serviceBaseUrl, '/openclaw/discovery', { apiKey });
-  checks.push({ details: `status=${discovery.status}`, name: 'discovery', ok: discovery.ok });
+  const manifest = await requestOpenClawManifest(serviceBaseUrl, { apiKey });
+  checks.push({ details: `status=${manifest.status}`, name: 'openclaw_manifest', ok: manifest.ok });
 
   const ocHealth = await requestJson(serviceBaseUrl, '/openclaw/health', { apiKey });
   checks.push({ details: `status=${ocHealth.status}`, name: 'openclaw_health', ok: ocHealth.ok });
 
-  const status = await requestJson(serviceBaseUrl, '/openclaw/status', { apiKey });
+  const status = manifest.ok ? manifest : await requestJson(serviceBaseUrl, '/openclaw/status', { apiKey });
   checks.push({ details: `status=${status.status}`, name: 'openclaw_status', ok: status.ok });
 
   const models = await requestJson(serviceBaseUrl, '/v1/models', { apiKey });
@@ -873,6 +936,7 @@ function printLegacyHelp() {
   console.log(`ModelHub CLI
 
 Uso:
+  modelhub openclaw run [--api-key KEY] [--base-url URL] [--verbose] [--debug]
   modelhub openclaw setup [--base-url URL] [--api-key KEY] [--model MODEL] [--provider-id ID]
   modelhub openclaw sync [--base-url URL] [--api-key KEY] [--provider-id ID]
   modelhub openclaw login [--base-url URL] [--api-key KEY] [--provider-id ID]
@@ -883,7 +947,7 @@ Uso:
 
 Dica:
   Para o fluxo via npx, use:
-  npx @model-hub/openclaw-cli setup --base-url https://www.modelhub.com.br --api-key SUA_API_KEY`);
+  npx @model-hub/openclaw-cli run --base-url https://www.modelhub.com.br --api-key SUA_API_KEY`);
 }
 
 async function dispatchCommand(command, args) {

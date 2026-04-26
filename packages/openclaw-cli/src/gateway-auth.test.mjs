@@ -38,7 +38,7 @@ describe('gateway-auth helpers', () => {
       challengeNonce: 'nonce-123',
       env: { OPENCLAW_STATE_DIR: stateDir },
       token: 'gw-token',
-      version: '2.0.3',
+      version: '2.0.9',
     });
 
     expect(params).toEqual(expect.objectContaining({
@@ -47,7 +47,7 @@ describe('gateway-auth helpers', () => {
         displayName: 'ModelHub Bridge',
         id: 'gateway-client',
         mode: 'backend',
-        version: '2.0.3',
+        version: '2.0.9',
       }),
       device: expect.objectContaining({
         id: expect.any(String),

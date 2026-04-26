@@ -25,14 +25,28 @@ function resolveSelectedModel(
   }
 
   const persisted =
-    typeof window !== "undefined"
-      ? window.localStorage.getItem(`selected-model:${providerId}`)
+    typeof globalThis.window !== "undefined"
+      ? globalThis.localStorage.getItem(`selected-model:${providerId}`)
       : null;
   if (persisted && nextModels.some((m) => m.id === persisted)) {
     return persisted;
   }
 
   return nextModels[0]?.id ?? "";
+}
+
+function dedupeModels(models: ProviderModel[]): ProviderModel[] {
+  const seen = new Set<string>();
+  const out: ProviderModel[] = [];
+  for (const model of models) {
+    const id = model.id.trim();
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    out.push({ ...model, id });
+  }
+  return out;
 }
 
 type UseProviderModelsInput = {
@@ -94,14 +108,15 @@ export function useProviderModels(input: UseProviderModelsInput): UseProviderMod
 
     const handleModels = (nextModels: ProviderModel[], errorLabel: string) => {
       if (cancelled) return;
+      const uniqueModels = dedupeModels(nextModels);
 
-      if (nextModels.length === 0) {
+      if (uniqueModels.length === 0) {
         toast.error(errorLabel, { duration: 8000 });
       }
 
-      setModels(nextModels);
+      setModels(uniqueModels);
       setSelectedModelId((current) =>
-        resolveSelectedModel(current, nextModels, selectedProvider.id),
+        resolveSelectedModel(current, uniqueModels, selectedProvider.id),
       );
     };
 
@@ -163,8 +178,8 @@ export function useProviderModels(input: UseProviderModelsInput): UseProviderMod
   ]);
 
   useEffect(() => {
-    if (!selectedProvider || !selectedModelId || typeof window === "undefined") return;
-    window.localStorage.setItem(`selected-model:${selectedProvider.id}`, selectedModelId);
+    if (!selectedProvider || !selectedModelId || typeof globalThis.window === "undefined") return;
+    globalThis.localStorage.setItem(`selected-model:${selectedProvider.id}`, selectedModelId);
   }, [selectedModelId, selectedProvider]);
 
   const selectedModel = models.find((m) => m.id === selectedModelId) ?? null;

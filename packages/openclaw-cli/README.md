@@ -28,6 +28,8 @@ npx @model-hub/openclaw-cli doctor [--base-url URL] [--api-key KEY] [--model MOD
 - `bridge` continua disponivel como alias de compatibilidade para `run`
 - `setup`, `sync`, `login`, `models`, `use` e `doctor` ficam disponiveis como comandos avancados
 - A configuracao real do OpenClaw continua sendo escrita em `~/.openclaw/openclaw.json`
+- Clientes novos preferem `GET /openclaw/manifest`; endpoints antigos continuam com fallback por uma release
+- Rotas locais mutaveis do bridge exigem `Authorization: Bearer <bridge-token>`
 
 ## Arquivo gerado
 

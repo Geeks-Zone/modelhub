@@ -114,6 +114,45 @@ describe("provider payload limits", () => {
     expect(response.status).toBe(200);
   });
 
+  it("accepts the large OpenClaw system prompt with tool inventory", async () => {
+    const chat = vi.fn().mockResolvedValue(new Response("ok"));
+    const app = createProviderApp({
+      basePath: "/test-provider",
+      chat,
+      defaultModel: "demo-model",
+      models: [{ capabilities: { documents: true, images: false }, id: "demo-model", name: "Demo Model" }],
+      providerId: "test-provider",
+    });
+
+    const giantSystemPrompt = `You are OpenClaw.\n${"tool: read, write, edit, exec, browser\n".repeat(2500)}`;
+
+    const response = await app.request("/test-provider/api/chat", {
+      body: JSON.stringify({
+        messages: [
+          { content: giantSystemPrompt, role: "system" },
+          { content: "Oi tudo bem?", role: "user" },
+        ],
+        modelId: "demo-model",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    expect(chat).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: giantSystemPrompt,
+          role: "system",
+        }),
+      ]),
+      "demo-model",
+      expect.any(Object),
+      expect.any(Object),
+      undefined,
+    );
+  });
+
   it("injects extracted document text into the provider payload", async () => {
     mockPrisma.conversationAttachment.findMany.mockResolvedValueOnce([
       {

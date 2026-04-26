@@ -259,6 +259,51 @@ function buildAttachmentLabel(attachment: { extractionStatus: AttachmentExtracti
   }
 }
 
+async function persistMessagesForConversation(conversationId: string, outgoingMessages: Array<{
+  content?: string;
+  parts?: ConversationMessagePart[];
+  role: "assistant" | "user";
+}>) {
+  return apiJsonRequest<{ messages: PersistedConversationMessage[] }>(
+    `/conversations/${conversationId}/messages`,
+    "POST",
+    { messages: outgoingMessages },
+  );
+}
+
+async function trimConversation(conversationId: string, input: {
+  afterMessageId?: string;
+  fromMessageId?: string;
+}) {
+  const query = new URLSearchParams();
+  if (input.afterMessageId) {
+    query.set("afterMessageId", input.afterMessageId);
+  }
+  if (input.fromMessageId) {
+    query.set("fromMessageId", input.fromMessageId);
+  }
+
+  return apiJson<{ deletedMessageIds: string[] }>(`/conversations/${conversationId}/messages?${query.toString()}`, {
+    method: "DELETE",
+  });
+}
+
+function resolveModelSelectPlaceholder(input: {
+  hasModels: boolean;
+  isOpenClaw: boolean;
+  isGatewayLoading: boolean;
+  isBridgeLoading: boolean;
+  isOpenClawNotReady: boolean;
+  providerReady: boolean;
+}): string {
+  if (!input.hasModels) return "Sem modelo";
+  if (input.isOpenClaw && input.isGatewayLoading) return "A verificar gateway…";
+  if (input.isOpenClaw && input.isBridgeLoading) return "A verificar integração local...";
+  if (input.isOpenClaw && input.isOpenClawNotReady) return "Configurar…";
+  if (input.providerReady) return "Modelo";
+  return "Credenciais…";
+}
+
 export function ChatPage() {
   const { credentials, providers, refreshCredentials } = useAppState();
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
@@ -376,22 +421,22 @@ export function ChatPage() {
   const composerHasUploadingAttachments = attachments.some((attachment) => attachment.status === "uploading");
 
   useEffect(() => {
-    if (!providers.length || selectedProviderId) {
+    if (providers.length === 0 || selectedProviderId) {
       return;
     }
 
     const preferred =
-      (typeof window !== "undefined" ? window.localStorage.getItem("selected-provider") : null) ??
+      (globalThis.window?.localStorage.getItem("selected-provider") ?? null) ??
       (providers.find((provider) => provider.id === "gateway")?.id ?? providers[0]?.id ?? "");
     setSelectedProviderId(preferred);
   }, [providers, selectedProviderId]);
 
   useEffect(() => {
-    if (!selectedProviderId || typeof window === "undefined") {
+    if (!selectedProviderId || typeof globalThis === "undefined") {
       return;
     }
 
-    window.localStorage.setItem("selected-provider", selectedProviderId);
+    globalThis.localStorage.setItem("selected-provider", selectedProviderId);
   }, [selectedProviderId]);
 
 
@@ -808,35 +853,6 @@ export function ChatPage() {
     }
   }, [providers, setSelectedModelId]);
 
-  async function persistMessagesForConversation(conversationId: string, outgoingMessages: Array<{
-    content?: string;
-    parts?: ConversationMessagePart[];
-    role: "assistant" | "user";
-  }>) {
-    return apiJsonRequest<{ messages: PersistedConversationMessage[] }>(
-      `/conversations/${conversationId}/messages`,
-      "POST",
-      { messages: outgoingMessages },
-    );
-  }
-
-  async function trimConversation(conversationId: string, input: {
-    afterMessageId?: string;
-    fromMessageId?: string;
-  }) {
-    const query = new URLSearchParams();
-    if (input.afterMessageId) {
-      query.set("afterMessageId", input.afterMessageId);
-    }
-    if (input.fromMessageId) {
-      query.set("fromMessageId", input.fromMessageId);
-    }
-
-    return apiJson<{ deletedMessageIds: string[] }>(`/conversations/${conversationId}/messages?${query.toString()}`, {
-      method: "DELETE",
-    });
-  }
-
   function updateAssistantToolCall(
     assistantMessageId: string,
     toolCall: ParsedToolCall,
@@ -1150,8 +1166,11 @@ export function ChatPage() {
         });
       } else if (selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge") {
         try {
+          if (!temporaryOpenClawConversationIdRef.current) {
+            temporaryOpenClawConversationIdRef.current = `temp:${crypto.randomUUID()}`;
+          }
           const bridgeConversationId = temporaryChat
-            ? (temporaryOpenClawConversationIdRef.current ||= `temp:${crypto.randomUUID()}`)
+            ? temporaryOpenClawConversationIdRef.current
             : await ensureConversationId(text || currentAttachments[0]?.fileName || "Nova conversa");
           ensuredConversationId = bridgeConversationId;
           parsedStream = await streamBridgeMessage({
@@ -1173,8 +1192,12 @@ export function ChatPage() {
           );
           const bridgeBase = normalizeGatewayBaseUrl(openclaw.bridgeSettings.baseUrl);
           const bridgeHeaders: Record<string, string> = { "Content-Type": "application/json" };
-          if (openclaw.bridgeSettings.token.trim()) {
-            bridgeHeaders.Authorization = `Bearer ${openclaw.bridgeSettings.token.trim()}`;
+          // Prefere o token recebido via WS hello (gerado pelo CLI). Cai para o
+          // token salvo nas settings se o usuario tiver colado um manualmente.
+          const fallbackToken =
+            bridgeClientRef.current?.bridgeToken?.trim() || openclaw.bridgeSettings.token.trim();
+          if (fallbackToken) {
+            bridgeHeaders.Authorization = `Bearer ${fallbackToken}`;
           }
           response = await fetch(`${bridgeBase}/v1/chat/completions`, {
             body: JSON.stringify({
@@ -1326,11 +1349,14 @@ export function ChatPage() {
       }
 
       if (parsedStream.errorMessage) {
-        const nextContent = parsedStream.hadPartialOutput
-          ? `${fullText}${STREAM_INTERRUPTED_NOTE}`
-          : selectedProviderId === "duckai"
-            ? DUCKAI_TEMPORARY_INLINE_MESSAGE
-            : `Erro: ${parsedStream.errorMessage}`;
+        let nextContent: string;
+        if (parsedStream.hadPartialOutput) {
+          nextContent = `${fullText}${STREAM_INTERRUPTED_NOTE}`;
+        } else if (selectedProviderId === "duckai") {
+          nextContent = DUCKAI_TEMPORARY_INLINE_MESSAGE;
+        } else {
+          nextContent = `Erro: ${parsedStream.errorMessage}`;
+        }
 
         setMessages((current) =>
           current.map((message) =>
@@ -1409,7 +1435,7 @@ export function ChatPage() {
           setSidebarRefreshKey((k) => k + 1);
 
           // Generate AI title for new conversations (fire-and-forget)
-          if (isNewConversation && selectedProvider && fullText && !isOpenClawProvider) {
+          if (isNewConversation && selectedProvider && !isOpenClawProvider) {
             const titleConvId = convId;
             void (async () => {
               try {
@@ -1428,7 +1454,7 @@ export function ChatPage() {
                 });
                 if (titleResponse.ok) {
                   const titleResult = await parseChatStream(titleResponse, {});
-                  const cleanTitle = titleResult.text.trim().replace(/^["']|["']$/g, "").slice(0, 100);
+                  const cleanTitle = titleResult.text.trim().replaceAll(/^["']|["']$/g, "").slice(0, 100);
                   if (cleanTitle) {
                     await apiJsonRequest(`/conversations/${titleConvId}`, "PATCH", { title: cleanTitle });
                     setSidebarRefreshKey((k) => k + 1);
@@ -1451,12 +1477,14 @@ export function ChatPage() {
       }
 
       const requestError = error as ChatRequestError;
-      const errorMsg =
-        requestError.suppressToast
-          ? DUCKAI_TEMPORARY_INLINE_MESSAGE
-          : error instanceof Error
-            ? `Erro: ${error.message}`
-            : "Erro ao enviar mensagem.";
+      let errorMsg: string;
+      if (requestError.suppressToast) {
+        errorMsg = DUCKAI_TEMPORARY_INLINE_MESSAGE;
+      } else if (error instanceof Error) {
+        errorMsg = `Erro: ${error.message}`;
+      } else {
+        errorMsg = "Erro ao enviar mensagem.";
+      }
       setMessages((current) =>
         current.map((message) =>
           message.id === assistantMessageId
@@ -1485,7 +1513,7 @@ export function ChatPage() {
     const regenerateAttachments = (lastUserMsg.parts ?? []).filter(isHydratedAttachmentPart);
     const conversationUserIndex = conversation.findIndex((entry) => entry.id === lastUserMsg.id);
     const baseConversation = conversationUserIndex >= 0 ? conversation.slice(0, conversationUserIndex) : conversation.slice(0, lastUserMsgIndex);
-    const lastAssistantMessage = messages[messages.length - 1];
+    const lastAssistantMessage = messages.at(-1);
 
     if (activeConversationId && lastAssistantMessage?.role === "assistant") {
       try {
@@ -1513,7 +1541,7 @@ export function ChatPage() {
         `/conversations/${activeConversationId}/share`,
         "POST",
       );
-      const shareUrl = `${window.location.origin}/share/${data.shareToken}`;
+      const shareUrl = `${globalThis.location.origin}/share/${data.shareToken}`;
       await navigator.clipboard.writeText(shareUrl);
       toast.success("Link de compartilhamento copiado!");
     } catch {
@@ -1676,26 +1704,23 @@ export function ChatPage() {
               onValueChange={(modelId: string) => {
                 setSelectedModelId(modelId);
                 if (selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge" && openclaw.bridgeProbe.status === "ok") {
-                  void setBridgeModel(openclaw.bridgeSettings.baseUrl, modelId);
+                  const token =
+                    bridgeClientRef.current?.bridgeToken?.trim() || openclaw.bridgeSettings.token.trim();
+                  void setBridgeModel(openclaw.bridgeSettings.baseUrl, modelId, token);
                 }
               }}
               disabled={!selectedProvider?.hasModels || !selectedProviderReady || models.length === 0}
             >
               <SelectTrigger className="h-8 w-auto max-w-[min(240px,60vw)] shrink-0 text-xs sm:min-w-[140px] sm:max-w-[240px]">
                 <SelectValue
-                  placeholder={
-                    !selectedProvider?.hasModels
-                      ? "Sem modelo"
-                      : selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "gateway" && openclaw.gatewayProbe.status === "loading"
-                        ? "A verificar gateway…"
-                        : selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge" && openclaw.bridgeProbe.status === "loading"
-                          ? "A verificar integração local..."
-                          : selectedProviderId === OPENCLAW_PROVIDER_ID && !selectedProviderReady
-                            ? "Configurar…"
-                            : selectedProviderReady
-                              ? "Modelo"
-                              : "Credenciais…"
-                  }
+                  placeholder={resolveModelSelectPlaceholder({
+                    hasModels: !!selectedProvider?.hasModels,
+                    isBridgeLoading: selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "bridge" && openclaw.bridgeProbe.status === "loading",
+                    isGatewayLoading: selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.mode === "gateway" && openclaw.gatewayProbe.status === "loading",
+                    isOpenClaw: selectedProviderId === OPENCLAW_PROVIDER_ID,
+                    isOpenClawNotReady: !selectedProviderReady,
+                    providerReady: !!selectedProviderReady,
+                  })}
                 />
               </SelectTrigger>
               <SelectContent>
@@ -1715,7 +1740,7 @@ export function ChatPage() {
               variant="ghost"
               size="sm"
               className="h-8 shrink-0 text-xs"
-              onClick={() => window.open(openClawDashboardUrl, "_blank", "noopener,noreferrer")}
+              onClick={() => globalThis.open(openClawDashboardUrl, "_blank", "noopener,noreferrer")}
               title="Abre o painel oficial do OpenClaw (WebSocket / chat nativo) com o mesmo token — numa nova aba"
             >
               <ExternalLinkIcon className="size-3.5" />
@@ -1825,6 +1850,19 @@ export function ChatPage() {
           Chat temporário — as mensagens não serão salvas no histórico
         </div>
       )}
+
+      {selectedProviderId === OPENCLAW_PROVIDER_ID && openclaw.degradedProviders.length > 0 ? (
+        <div className="shrink-0 px-3 pt-3 md:px-4">
+          <Alert variant="destructive">
+            <KeyRoundIcon data-icon="inline-start" />
+            <AlertTitle>Credencial do OpenClaw precisa ser recadastrada</AlertTitle>
+            <AlertDescription>
+              {openclaw.degradedProviders.map((provider) => provider.providerId).join(", ")} não pôde ser decriptada.
+              Recadastre a credencial antes de usar esses modelos.
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
 
       {/* OpenClaw: verificação reativa */}
       {selectedProviderId === OPENCLAW_PROVIDER_ID && !openclaw.isOpenClawReady ? (

@@ -1,16 +1,31 @@
 import type { ProviderModel } from "./provider-core";
 
 import { isProviderEnabled } from "./catalog";
+import {
+  resolveContextWindow,
+  resolveLatencyTier,
+  resolvePricingTier,
+  resolveReasoning,
+} from "./openclaw-model-metadata";
 import { getProviderModels, providerRegistry } from "../providers/registry";
 
+const OPENCLAW_CATALOG_CACHE_MAX_ENTRIES = 256;
 const OPENCLAW_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+const OPENCLAW_CATALOG_CACHE_ABSOLUTE_TTL_MS = 30 * 60 * 1000;
 
 type CatalogCacheEntry = {
   catalog: OpenClawCatalogModel[];
+  createdAt: number;
   fetchedAt: number;
 };
 
-let catalogCache: CatalogCacheEntry | null = null;
+const catalogCache = new Map<string, CatalogCacheEntry>();
+
+type BuildOpenClawCatalogOptions = {
+  cacheKeySuffix?: string;
+  providerCredentials?: Record<string, Record<string, string>>;
+  providerIds?: Iterable<string>;
+};
 
 export type OpenClawPresetId = "coding" | "agentic" | "low-cost" | "long-context";
 
@@ -40,45 +55,48 @@ export type OpenClawPresetRecommendation = {
   reason: string;
 };
 
-function inferContextWindow(modelId: string): number | null {
-  const directKMatch = /(^|[^0-9])(\d{2,4})k([^0-9]|$)/i.exec(modelId);
-  if (!directKMatch) return null;
+// Decisoes de contextWindow / pricing / latency / reasoning sao delegadas ao
+// modulo openclaw-model-metadata.ts (tabela explicita + heuristica honesta).
 
-  const asNumber = Number(directKMatch[2]);
-  if (!Number.isFinite(asNumber) || asNumber <= 0) return null;
-  return asNumber * 1024;
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  cerebras: "Cerebras",
+  cloudflareworkersai: "Cloudflare Workers AI",
+  codestral: "Codestral",
+  cohere: "Cohere",
+  deepseek: "DeepSeek",
+  duckai: "Duck.ai",
+  fireworks: "Fireworks",
+  gateway: "Gateway",
+  githubmodels: "GitHub Models",
+  googleaistudio: "Google AI Studio",
+  groq: "Groq",
+  huggingface: "HuggingFace",
+  mistral: "Mistral",
+  nvidianim: "NVIDIA NIM",
+  opencodezen: "OpenCode Zen",
+  openrouter: "OpenRouter",
+  perplexity: "Perplexity",
+  pollinations: "Pollinations",
+  quillbot: "Quillbot",
+  togetherai: "Together AI",
+  vercelgateway: "Vercel AI Gateway",
+};
+
+function providerDisplayName(providerId: string): string {
+  return PROVIDER_DISPLAY_NAMES[providerId] ?? providerId;
 }
 
-function inferPricingTier(modelId: string): OpenClawCatalogModel["pricingTier"] {
-  const id = modelId.toLowerCase();
-  if (id.includes(":free") || id.includes("/free")) return "free";
-  if (id.includes("mini") || id.includes("nano") || id.includes("flash-lite")) return "low";
-  if (id.includes("opus") || id.includes("ultra") || id.includes("gpt-5")) return "premium";
-  if (id.includes("gpt-4") || id.includes("sonnet") || id.includes("r1")) return "standard";
-  return "unknown";
-}
-
-function inferLatencyTier(modelId: string): OpenClawCatalogModel["latencyTier"] {
-  const id = modelId.toLowerCase();
-  if (id.includes("flash") || id.includes("instant") || id.includes("haiku") || id.includes("mini")) return "low";
-  if (id.includes("opus") || id.includes("70b") || id.includes("405b")) return "high";
-  if (id.includes("sonnet") || id.includes("pro") || id.includes("plus")) return "medium";
-  return "unknown";
-}
-
-function inferReasoning(modelId: string): OpenClawCatalogModel["capabilities"]["reasoning"] {
-  const id = modelId.toLowerCase();
-  if (id.includes("reason") || id.includes("r1") || id.includes("o1") || id.includes("o3") || id.includes("think")) {
-    return "advanced";
+function cleanModelName(modelName: string, providerId: string): string {
+  const displayName = providerDisplayName(providerId);
+  const suffix = ` (${displayName})`;
+  if (modelName.endsWith(suffix)) {
+    return modelName.slice(0, -suffix.length);
   }
-  if (id.includes("instruct") || id.includes("chat")) return "basic";
-  return "none";
-}
-
-function inferToolsCapability(modelId: string): boolean {
-  const id = modelId.toLowerCase();
-  if (id.includes("vision-only")) return false;
-  return true;
+  const parenIdx = modelName.indexOf(" (");
+  if (parenIdx > 0) {
+    return modelName.slice(0, parenIdx);
+  }
+  return modelName;
 }
 
 function inferPresets(model: OpenClawCatalogModel): OpenClawPresetId[] {
@@ -119,14 +137,17 @@ function deriveAlias(modelName: string): string {
 }
 
 function toOpenClawCatalogModel(providerId: string, model: ProviderModel): OpenClawCatalogModel {
-  const contextWindow = inferContextWindow(model.id);
-  const pricingTier = inferPricingTier(model.id);
-  const latencyTier = inferLatencyTier(model.id);
-  const reasoning = inferReasoning(model.id);
-  const tools = inferToolsCapability(model.id);
+  const contextWindow = resolveContextWindow(providerId, model.id);
+  const pricingTier = resolvePricingTier(providerId, model.id);
+  const latencyTier = resolveLatencyTier(providerId, model.id);
+  const reasoning = resolveReasoning(providerId, model.id);
+  const tools = model.capabilities.tools ?? false;
+  const displayName = providerDisplayName(providerId);
+  const modelName = cleanModelName(model.name, providerId);
+  const fullName = `${displayName}: ${modelName}`;
 
   const out: OpenClawCatalogModel = {
-    alias: deriveAlias(model.name),
+    alias: deriveAlias(fullName),
     capabilities: {
       documents: model.capabilities.documents,
       images: model.capabilities.images,
@@ -138,7 +159,7 @@ function toOpenClawCatalogModel(providerId: string, model: ProviderModel): OpenC
     latencyTier,
     maxTokens: null,
     modelId: model.id,
-    name: model.name,
+    name: fullName,
     pricingTier,
     providerId,
     presets: [],
@@ -185,16 +206,91 @@ function recommendationReason(preset: OpenClawPresetId, model: OpenClawCatalogMo
   return "Modelo com maior janela de contexto entre os disponíveis.";
 }
 
-export async function buildOpenClawCatalog(): Promise<OpenClawCatalogModel[]> {
-  const now = Date.now();
-  if (catalogCache && now - catalogCache.fetchedAt < OPENCLAW_CATALOG_CACHE_TTL_MS) {
-    return catalogCache.catalog;
+function getEnabledProviderIds(providerIds?: Iterable<string>): string[] {
+  const candidates = providerIds ? [...providerIds] : Object.keys(providerRegistry);
+  return [...new Set(candidates.map((providerId) => providerId.trim()).filter(Boolean))]
+    .filter((providerId) => providerRegistry[providerId] && isProviderEnabled(providerId))
+    .sort();
+}
+
+function buildCatalogCacheKey(providerIds: string[], cacheKeySuffix: string | undefined): string {
+  return `${cacheKeySuffix?.trim() || "env"}:${providerIds.join(",")}`;
+}
+
+function pruneExpiredCatalogCacheEntries(now: number): void {
+  for (const [key, entry] of catalogCache) {
+    if (now - entry.createdAt >= OPENCLAW_CATALOG_CACHE_ABSOLUTE_TTL_MS) {
+      catalogCache.delete(key);
+    }
+  }
+}
+
+function getCachedCatalog(cacheKey: string, now: number): OpenClawCatalogModel[] | null {
+  const cached = catalogCache.get(cacheKey);
+  if (!cached) {
+    return null;
   }
 
-  const enabledProviders = Object.keys(providerRegistry).filter(isProviderEnabled);
+  if (
+    now - cached.fetchedAt >= OPENCLAW_CATALOG_CACHE_TTL_MS ||
+    now - cached.createdAt >= OPENCLAW_CATALOG_CACHE_ABSOLUTE_TTL_MS
+  ) {
+    catalogCache.delete(cacheKey);
+    return null;
+  }
+
+  catalogCache.delete(cacheKey);
+  catalogCache.set(cacheKey, cached);
+  return cached.catalog;
+}
+
+function setCachedCatalog(cacheKey: string, catalog: OpenClawCatalogModel[], now: number): void {
+  pruneExpiredCatalogCacheEntries(now);
+  catalogCache.delete(cacheKey);
+
+  while (catalogCache.size >= OPENCLAW_CATALOG_CACHE_MAX_ENTRIES) {
+    const oldestKey = catalogCache.keys().next().value as string | undefined;
+    if (!oldestKey) {
+      break;
+    }
+    catalogCache.delete(oldestKey);
+  }
+
+  catalogCache.set(cacheKey, { catalog, createdAt: now, fetchedAt: now });
+}
+
+export function getOpenClawCatalogCacheStats(): {
+  maxEntries: number;
+  size: number;
+} {
+  return {
+    maxEntries: OPENCLAW_CATALOG_CACHE_MAX_ENTRIES,
+    size: catalogCache.size,
+  };
+}
+
+export function clearOpenClawCatalogCache(): void {
+  catalogCache.clear();
+}
+
+export async function buildOpenClawCatalog(
+  options: BuildOpenClawCatalogOptions = {},
+): Promise<OpenClawCatalogModel[]> {
+  const enabledProviders = getEnabledProviderIds(options.providerIds);
+  const cacheKey = buildCatalogCacheKey(enabledProviders, options.cacheKeySuffix);
+  const now = Date.now();
+  const cached = getCachedCatalog(cacheKey, now);
+  if (cached) {
+    return cached;
+  }
+
   const results = await Promise.allSettled(
     enabledProviders.map(async (providerId) => {
-      const models = await getProviderModels(providerId);
+      const models = await getProviderModels(providerId, {
+        cacheKeySuffix: options.cacheKeySuffix ? `openclaw:${options.cacheKeySuffix}` : undefined,
+        credentials: options.providerCredentials?.[providerId],
+        staleWhileRevalidate: false,
+      });
       return { models, providerId };
     }),
   );
@@ -203,12 +299,18 @@ export async function buildOpenClawCatalog(): Promise<OpenClawCatalogModel[]> {
   for (const result of results) {
     if (result.status !== "fulfilled") continue;
     for (const model of result.value.models) {
-      catalog.push(toOpenClawCatalogModel(result.value.providerId, model));
+      const entry = toOpenClawCatalogModel(result.value.providerId, model);
+      if (!entry.capabilities.tools) continue;
+      catalog.push(entry);
     }
   }
 
-  const sorted = catalog.sort((a, b) => a.unifiedModelId.localeCompare(b.unifiedModelId));
-  catalogCache = { catalog: sorted, fetchedAt: now };
+  const sorted = catalog.sort((a, b) => {
+    const providerCmp = a.providerId.localeCompare(b.providerId);
+    if (providerCmp !== 0) return providerCmp;
+    return a.modelId.localeCompare(b.modelId);
+  });
+  setCachedCatalog(cacheKey, sorted, now);
   return sorted;
 }
 
@@ -269,26 +371,46 @@ export type OpenClawConfigOutput = {
   };
 };
 
+/**
+ * Minimum context window (in tokens) a model must declare to stay in the OpenClaw
+ * fallback chain. OpenClaw prepends a large system prompt describing the tool
+ * inventory (~20-30k tokens in practice). Falling back to a small-context model
+ * (e.g. Cerebras gpt-oss-120b at 8192) would immediately overflow and surface a
+ * confusing "reduce the length of the messages" upstream error instead of a real
+ * retry, so we prune those from the fallback list.
+ */
+const OPENCLAW_MIN_FALLBACK_CONTEXT = 32 * 1024;
+
 export function buildOpenClawConfig(
   catalog: OpenClawCatalogModel[],
   presets: OpenClawPresetRecommendation[],
   baseUrl: string,
 ): OpenClawConfigOutput {
-  const modelsList = catalog.map((m) => ({
-    contextWindow: m.contextWindow ?? undefined,
-    id: m.unifiedModelId,
-    input: inferModelInput(m),
-    maxTokens: m.maxTokens ?? undefined,
-    name: m.name,
-    reasoning: m.capabilities.reasoning !== "none",
-  }));
+  const modelsList = catalog.map((m) => {
+    return {
+      contextWindow: m.contextWindow ?? undefined,
+      id: m.unifiedModelId,
+      input: inferModelInput(m),
+      maxTokens: m.maxTokens ?? undefined,
+      name: m.name,
+      reasoning: m.capabilities.reasoning !== "none",
+    };
+  });
 
   const primaryPreset = presets.find((p) => p.preset === "coding");
   const primary = primaryPreset?.model ?? (catalog.length > 0 ? catalog[0].unifiedModelId : "modelhub/openai/gpt-4.1-mini");
 
+  const catalogByUnifiedId = new Map(catalog.map((m) => [m.unifiedModelId, m] as const));
+  const isFallbackCompatible = (modelRef: string): boolean => {
+    const entry = catalogByUnifiedId.get(modelRef);
+    if (!entry) return true; // unknown models pass through; we only prune what we can prove is too small
+    if (entry.contextWindow === null || entry.contextWindow === undefined) return true;
+    return entry.contextWindow >= OPENCLAW_MIN_FALLBACK_CONTEXT;
+  };
+
   const fallbacks: string[] = [];
   for (const preset of presets) {
-    if (preset.model && preset.model !== primary && !fallbacks.includes(preset.model)) {
+    if (preset.model && preset.model !== primary && !fallbacks.includes(preset.model) && isFallbackCompatible(preset.model)) {
       fallbacks.push(preset.model);
     }
   }

@@ -2,9 +2,9 @@ import { createProviderApp } from '../lib/provider-core'
 import { chatViaOpenAiCompatible, createOpenAiFetchModels, testViaOpenAiModels } from '../lib/openai-compatible'
 
 export const models = [
-  { capabilities: { documents: true, images: false }, id: 'openai/gpt-oss-20b:free', name: 'GPT OSS 20B (OpenRouter Free)' },
-  { capabilities: { documents: true, images: false }, id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (OpenRouter Free)' },
-  { capabilities: { documents: true, images: false }, id: 'google/gemma-3-12b-it:free', name: 'Gemma 3 12B (OpenRouter Free)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'openai/gpt-oss-20b:free', name: 'GPT OSS 20B (OpenRouter Free)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (OpenRouter Free)' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'google/gemma-3-12b-it:free', name: 'Gemma 3 12B (OpenRouter Free)' },
 ]
 
 const app = createProviderApp({

@@ -5,62 +5,17 @@ import {
   extractRunId,
   extractSessionKey,
 } from './gateway-client.mjs';
+import {
+  normalizeConfiguredModelRef,
+} from './utils.mjs';
+import { ensureModelHubPrefix, isOriginAllowed } from './bridge-shared.mjs';
+import { parseBridgeEventPayload } from './bridge-events-schema.mjs';
 
-const ALLOWED_ORIGINS = new Set([
-  'https://www.modelhub.com.br',
-  'https://modelhub.com.br',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-]);
 const NOOP_EVENT_HANDLER = () => {};
+const BROWSER_WS_HEARTBEAT_INTERVAL_MS = 20000;
+const BROWSER_WS_HEARTBEAT_MAX_MISSES = 2;
 
-function getAllowedOrigins() {
-  const extra = (process.env.MODELHUB_BRIDGE_ALLOWED_ORIGINS || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
-  return new Set([...ALLOWED_ORIGINS, ...extra]);
-}
-
-function isOriginAllowed(origin) {
-  if (!origin) {
-    return false;
-  }
-  const allowed = getAllowedOrigins();
-  if (allowed.has(origin)) {
-    return true;
-  }
-  try {
-    const url = new URL(origin);
-    return (url.hostname === 'localhost' || url.hostname === '127.0.0.1') && url.protocol === 'http:';
-  } catch {
-    return false;
-  }
-}
-
-function getModelsFromConfig(config) {
-  const providers = config?.models?.providers;
-  if (!providers || typeof providers !== 'object') {
-    return [];
-  }
-
-  const models = [];
-  for (const provider of Object.values(providers)) {
-    if (!Array.isArray(provider?.models)) {
-      continue;
-    }
-    for (const model of provider.models) {
-      if (!model?.id) {
-        continue;
-      }
-      models.push({
-        id: model.id,
-        name: model.name || model.alias || model.id,
-      });
-    }
-  }
-  return models;
-}
+const normalizeModelRef = ensureModelHubPrefix;
 
 function extractTextPayload(payload) {
   if (!payload || typeof payload !== 'object') {
@@ -75,6 +30,15 @@ function extractTextPayload(payload) {
   if (typeof payload.content === 'string' && payload.content) {
     return payload.content;
   }
+  if (Array.isArray(payload.content)) {
+    const text = payload.content
+      .map((part) => (part?.type === 'text' && typeof part.text === 'string' ? part.text : ''))
+      .filter(Boolean)
+      .join('');
+    if (text) {
+      return text;
+    }
+  }
   if (payload.message && typeof payload.message === 'object') {
     if (typeof payload.message.delta === 'string' && payload.message.delta) {
       return payload.message.delta;
@@ -85,6 +49,115 @@ function extractTextPayload(payload) {
     if (typeof payload.message.content === 'string' && payload.message.content) {
       return payload.message.content;
     }
+    if (Array.isArray(payload.message.content)) {
+      const text = payload.message.content
+        .map((part) => (part?.type === 'text' && typeof part.text === 'string' ? part.text : ''))
+        .filter(Boolean)
+        .join('');
+      if (text) {
+        return text;
+      }
+    }
+  }
+  return '';
+}
+
+function getMessagePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  return payload.message && typeof payload.message === 'object'
+    ? payload.message
+    : payload;
+}
+
+function extractMessageRole(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+  if (typeof payload.role === 'string' && payload.role) {
+    return payload.role;
+  }
+  if (payload.message && typeof payload.message === 'object' && typeof payload.message.role === 'string') {
+    return payload.message.role;
+  }
+  return '';
+}
+
+function extractMessageContentParts(payload) {
+  const message = getMessagePayload(payload);
+  if (!message || typeof message !== 'object') {
+    return [];
+  }
+  return Array.isArray(message.content) ? message.content : [];
+}
+
+function extractToolCallPayloads(payload) {
+  const parts = extractMessageContentParts(payload);
+  const toolCalls = [];
+  for (const part of parts) {
+    const type = String(part?.type || '').toLowerCase();
+    if (type !== 'toolcall' && type !== 'tool-call' && type !== 'tool_call') {
+      continue;
+    }
+
+    const toolName = String(part.name || part.toolName || part.tool || '');
+    toolCalls.push({
+      args: part.arguments ?? part.args ?? part.input ?? {},
+      toolCallId: String(part.id || part.toolCallId || part.callId || randomUUID()),
+      toolName: toolName || 'tool',
+    });
+  }
+  return toolCalls;
+}
+
+function extractToolResultMessagePayload(payload) {
+  const message = getMessagePayload(payload);
+  if (!message || typeof message !== 'object') {
+    return null;
+  }
+
+  const role = extractMessageRole(payload).toLowerCase();
+  if (role !== 'toolresult' && role !== 'tool_result' && role !== 'tool') {
+    return null;
+  }
+
+  const toolCallId = String(message.toolCallId || message.id || message.callId || payload.toolCallId || '');
+  if (!toolCallId) {
+    return null;
+  }
+
+  const parts = Array.isArray(message.content) ? message.content : [];
+  const text = parts
+    .map((part) => (part?.type === 'text' && typeof part.text === 'string' ? part.text : ''))
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    result: message.details ?? (text || message.result || message.output || null),
+    status: message.details?.status || message.status || payload.status || 'completed',
+    toolCallId,
+    toolName: String(message.toolName || payload.toolName || 'tool'),
+  };
+}
+
+function extractErrorMessage(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+  if (typeof payload.error === 'string' && payload.error) {
+    return payload.error;
+  }
+  if (payload.error && typeof payload.error === 'object') {
+    if (typeof payload.error.message === 'string' && payload.error.message) {
+      return payload.error.message;
+    }
+    if (typeof payload.error.details?.reason === 'string' && payload.error.details.reason) {
+      return payload.error.details.reason;
+    }
+  }
+  if (payload.message && typeof payload.message === 'object' && typeof payload.message.errorMessage === 'string') {
+    return payload.message.errorMessage;
   }
   return '';
 }
@@ -120,12 +193,54 @@ function extractToolResultPayload(payload) {
   };
 }
 
+function extractGatewayToolFailure(line) {
+  const text = String(line || '').trim();
+  if (!text.includes('[tools]') || !/\bfailed\b/i.test(text)) {
+    return null;
+  }
+
+  const toolsIndex = text.indexOf('[tools]');
+  const rawParamsIndex = text.indexOf(' raw_params=');
+  const messageStart = toolsIndex >= 0 ? toolsIndex + '[tools]'.length : 0;
+  const messageEnd = rawParamsIndex >= 0 ? rawParamsIndex : text.length;
+  const message = text.slice(messageStart, messageEnd).trim() || text;
+  let args = null;
+
+  if (rawParamsIndex >= 0) {
+    const rawParams = text.slice(rawParamsIndex + ' raw_params='.length).trim();
+    try {
+      args = JSON.parse(rawParams);
+    } catch {
+      args = rawParams;
+    }
+  }
+
+  return { args, message };
+}
+
+function isModelHubApiKeyError(message) {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('invalid or revoked api key')
+    || normalized.includes('api key do modelhub')
+    || normalized.includes('no api key found for provider "modelhub"')
+    || normalized.includes('no api key found for provider \'modelhub\'');
+}
+
 function isFinalPayload(payload) {
   if (!payload || typeof payload !== 'object') {
     return false;
   }
+  const stopReason = String(payload?.message?.stopReason || payload.stopReason || '').toLowerCase();
+  if (['tooluse', 'tool_use', 'tool-call', 'toolcall', 'tool_calls', 'toolcalls'].includes(stopReason)) {
+    return false;
+  }
+
   const marker = String(payload.phase || payload.state || payload.status || payload.kind || payload.type || '').toLowerCase();
-  return ['complete', 'completed', 'done', 'end', 'final', 'finished', 'ok'].includes(marker);
+  if (['complete', 'completed', 'done', 'end', 'final', 'finished', 'ok'].includes(marker)) {
+    return true;
+  }
+
+  return Boolean(stopReason && stopReason !== 'in_progress');
 }
 
 function isErrorPayload(payload) {
@@ -133,14 +248,21 @@ function isErrorPayload(payload) {
     return false;
   }
   const marker = String(payload.phase || payload.state || payload.status || payload.kind || payload.type || '').toLowerCase();
-  return marker === 'error' || Boolean(payload.error);
+  if (marker === 'error' || Boolean(payload.error)) {
+    return true;
+  }
+
+  const stopReason = String(payload?.message?.stopReason || '').toLowerCase();
+  return stopReason === 'error' || Boolean(extractErrorMessage(payload));
 }
 
 export class BridgeWSServer {
+  #activeSessionOwners = new Map();
   #clientStates = new Map();
   #config;
   #gatewayClient;
   #globalGatewayUnsubscribe = null;
+  #heartbeatTimer = null;
   #log;
   #wss = null;
 
@@ -158,6 +280,7 @@ export class BridgeWSServer {
     const WebSocketServer = mod.WebSocketServer || mod.Server || mod.default || mod;
 
     this.#wss = new WebSocketServer({ path: '/ws', server: httpServer });
+    this.#startServerHeartbeat();
     this.#log.info('[ws] Browser WS endpoint at /ws');
 
     this.#wss.on('connection', (ws, req) => {
@@ -172,17 +295,33 @@ export class BridgeWSServer {
       this.#clientStates.set(clientId, {
         activeRequestId: '',
         activeRunId: '',
+        activeToolCallId: '',
+        clientId,
         conversationId: '',
+        modelRef: normalizeConfiguredModelRef(this.#config.getConfig(), this.#config.getPrimaryModel()) || '',
         sessionKey: '',
         subscriptionStop: null,
         ws,
       });
+      ws.__modelhubMissedPongs = 0;
+
+      ws.on('pong', () => {
+        ws.__modelhubMissedPongs = 0;
+      });
+
+      const currentPrimary = normalizeConfiguredModelRef(this.#config.getConfig(), this.#config.getPrimaryModel())
+        || this.#config.getPrimaryModel()
+        || '';
 
       this.#send(ws, {
+        // bridgeToken: token compartilhado entre WS hello (origin-gated) e
+        // rotas HTTP mutaveis (Bearer). Permite que o fallback HTTP do
+        // browser autentique sem hardcoding nem CSRF. CLIs locais usam o
+        // mesmo token via openclaw.json.
+        bridgeToken: this.#config.gatewayToken || '',
         bridgeId: this.#config.bridgeId,
         gateway: { ok: this.#gatewayClient.connected, ws: this.#gatewayClient.connected },
-        model: { primary: this.#config.getPrimaryModel() },
-        models: getModelsFromConfig(this.#config.getConfig()),
+        model: { primary: currentPrimary },
         type: 'hello',
       });
 
@@ -200,6 +339,46 @@ export class BridgeWSServer {
         void this.#cleanupClient(clientId);
       });
     });
+  }
+
+  #startServerHeartbeat() {
+    if (this.#heartbeatTimer) {
+      clearInterval(this.#heartbeatTimer);
+    }
+    this.#heartbeatTimer = setInterval(() => this.#heartbeatTick(), BROWSER_WS_HEARTBEAT_INTERVAL_MS);
+    this.#heartbeatTimer.unref?.();
+  }
+
+  #heartbeatTick() {
+    if (!this.#wss) {
+      return;
+    }
+    for (const ws of this.#wss.clients) {
+      if (ws.readyState !== 1) {
+        continue;
+      }
+      // O pong handler zera __modelhubMissedPongs; aqui contamos rounds
+      // sem resposta. Limite atingido => derruba a conexao.
+      const missed = (ws.__modelhubMissedPongs || 0) + 1;
+      if (missed > BROWSER_WS_HEARTBEAT_MAX_MISSES) {
+        this.#terminateWs(ws);
+        continue;
+      }
+      ws.__modelhubMissedPongs = missed;
+      try {
+        ws.ping();
+      } catch {
+        this.#terminateWs(ws);
+      }
+    }
+  }
+
+  #terminateWs(ws) {
+    if (typeof ws.terminate === 'function') {
+      ws.terminate();
+    } else {
+      ws.close();
+    }
   }
 
   async #handleBrowserMessage(clientId, msg) {
@@ -232,7 +411,7 @@ export class BridgeWSServer {
 
         case 'model.list':
           this.#send(state.ws, {
-            models: getModelsFromConfig(this.#config.getConfig()),
+            model: { primary: this.#config.getPrimaryModel() },
             requestId: msg.requestId,
             type: 'model.list',
           });
@@ -256,21 +435,35 @@ export class BridgeWSServer {
         runId: state.activeRunId || undefined,
         type: 'run.error',
       });
+      this.#clearActiveOwner(state);
     }
   }
 
-  async #handleSessionEnsure(state, msg) {
+  async #handleSessionEnsure(state, msg, { announceReady = true } = {}) {
     const conversationId = String(msg.conversationId || state.conversationId || randomUUID());
     const requestedSessionKey = String(msg.sessionKey || state.sessionKey || `modelhub:${conversationId}`);
-    const modelRef = msg.model || this.#config.getPrimaryModel() || undefined;
+    const modelRef = await this.#resolveRequestedModelRef(state, msg.model, {
+      persistIfChanged: Boolean(msg.model),
+    });
 
     let session = await this.#gatewayClient.sessionGet(requestedSessionKey);
     if (!session?.sessionKey) {
-      session = await this.#gatewayClient.sessionCreate({
-        label: conversationId,
-        model: modelRef ? { primary: modelRef } : undefined,
-        sessionKey: requestedSessionKey,
-      });
+      try {
+        session = await this.#gatewayClient.sessionCreate({
+          label: conversationId,
+          model: modelRef ? { primary: modelRef } : undefined,
+          sessionKey: requestedSessionKey,
+        });
+      } catch (error) {
+        session = await this.#gatewayClient.sessionGet(requestedSessionKey, { timeout: 5000 });
+        if (!session?.sessionKey) {
+          throw error;
+        }
+      }
+    }
+
+    if (state.sessionKey && state.sessionKey !== session.sessionKey) {
+      this.#clearActiveOwner(state, state.sessionKey);
     }
 
     if (state.subscriptionStop && state.sessionKey && state.sessionKey !== session.sessionKey) {
@@ -283,33 +476,65 @@ export class BridgeWSServer {
     }
 
     state.conversationId = conversationId;
+    state.modelRef = modelRef || state.modelRef;
     state.sessionKey = session.sessionKey;
 
-    this.#send(state.ws, {
-      conversationId,
-      requestId: msg.requestId,
-      sessionKey: session.sessionKey,
-      type: 'session.ready',
-    });
+    if (announceReady) {
+      this.#send(state.ws, {
+        conversationId,
+        requestId: msg.requestId,
+        sessionKey: session.sessionKey,
+        type: 'session.ready',
+      });
+    }
   }
 
   async #handleChatSend(state, msg) {
-    await this.#handleSessionEnsure(state, {
-      conversationId: msg.conversationId,
-      model: msg.model,
-      requestId: msg.requestId,
-      sessionKey: msg.sessionKey,
+    const modelRef = await this.#resolveRequestedModelRef(state, msg.model, {
+      persistIfChanged: Boolean(msg.model),
+      required: true,
     });
-
-    if (msg.model) {
-      await this.#gatewayClient.sessionPatch(state.sessionKey, {
-        model: { primary: msg.model },
-      });
-    }
 
     state.activeRequestId = String(msg.requestId || randomUUID());
     state.activeRunId = '';
+    state.activeToolCallId = '';
+    this.#sendRunStatus(state, {
+      detail: { conversationId: msg.conversationId, model: modelRef || null },
+      label: 'OpenClaw: preparando sessao',
+      step: 'session',
+    });
 
+    // chat.send ja anuncia atividade via run.status; nao reemita session.ready
+    // para evitar dois eventos para a mesma operacao.
+    await this.#handleSessionEnsure(state, {
+      conversationId: msg.conversationId,
+      model: modelRef,
+      requestId: state.activeRequestId,
+      sessionKey: msg.sessionKey,
+    }, { announceReady: false });
+    this.#markActiveOwner(state);
+
+    if (modelRef) {
+      this.#sendRunStatus(state, {
+        detail: { model: modelRef },
+        label: 'OpenClaw: selecionando modelo',
+        step: 'model',
+      });
+      await this.#gatewayClient.sessionPatch(state.sessionKey, {
+        model: { primary: modelRef },
+      });
+      this.#sendRunStatus(state, {
+        detail: { model: modelRef },
+        label: 'OpenClaw: modelo selecionado',
+        status: 'completed',
+        step: 'model',
+      });
+    }
+
+    this.#sendRunStatus(state, {
+      label: 'OpenClaw: enviando mensagem',
+      step: 'send',
+    });
     const result = await this.#gatewayClient.sessionSend(
       state.sessionKey,
       String(msg.content || msg.text || ''),
@@ -320,6 +545,12 @@ export class BridgeWSServer {
     if (runId) {
       state.activeRunId = runId;
     }
+
+    this.#sendRunStatus(state, {
+      detail: runId ? { runId } : undefined,
+      label: 'OpenClaw: aguardando eventos',
+      step: 'wait',
+    });
 
     const immediateText = extractTextPayload(result);
     if (immediateText) {
@@ -334,6 +565,7 @@ export class BridgeWSServer {
         runId: state.activeRunId || undefined,
         type: 'run.completed',
       });
+      this.#clearActiveOwner(state);
     }
   }
 
@@ -348,16 +580,19 @@ export class BridgeWSServer {
       runId: state.activeRunId || undefined,
       type: 'chat.aborted',
     });
+    this.#clearActiveOwner(state);
     state.activeRunId = '';
   }
 
   async #handleModelChange(state, msg) {
-    const modelRef = String(msg.model || msg.primary || '');
+    const modelRef = await this.#resolveRequestedModelRef(state, String(msg.model || msg.primary || ''), {
+      persistIfChanged: true,
+      required: true,
+    });
     if (!modelRef) {
       throw new Error('Missing model');
     }
 
-    await this.#config.changeModel(modelRef);
     if (state.sessionKey) {
       await this.#gatewayClient.sessionPatch(state.sessionKey, {
         model: { primary: modelRef },
@@ -371,12 +606,45 @@ export class BridgeWSServer {
     });
   }
 
+  async #resolveRequestedModelRef(state, requestedModelRef, options = {}) {
+    const { persistIfChanged = false, required = false } = options;
+    const modelRef = requestedModelRef
+      ? normalizeModelRef(requestedModelRef)
+      : '';
+
+    const currentPrimary =
+      normalizeConfiguredModelRef(this.#config.getConfig(), this.#config.getPrimaryModel())
+      || normalizeModelRef(state.modelRef)
+      || '';
+    const resolved = modelRef || currentPrimary || '';
+
+    if (!resolved && required) {
+      throw new Error('Nenhum modelo OpenClaw foi configurado para esta integracao local.');
+    }
+
+    if (persistIfChanged && resolved && resolved !== currentPrimary) {
+      await this.#config.changeModel(resolved);
+    }
+
+    if (resolved) {
+      state.modelRef = resolved;
+    }
+
+    return resolved || undefined;
+  }
+
   async #handleToolApproval(state, msg) {
     if (!msg.approvalId) {
       throw new Error('Missing approvalId');
     }
 
     await this.#gatewayClient.approvalResolve(msg.approvalId, msg.approved !== false, msg.reason);
+    this.#sendRunStatus(state, {
+      detail: { approvalId: msg.approvalId, approved: msg.approved !== false },
+      label: 'OpenClaw: aprovacao respondida',
+      status: 'completed',
+      step: 'approval',
+    });
     this.#send(state.ws, {
       approvalId: msg.approvalId,
       requestId: msg.requestId,
@@ -386,42 +654,92 @@ export class BridgeWSServer {
   }
 
   #handleGatewayEvent(event) {
-    const sessionKey = extractSessionKey(event.payload);
-    const approvalId = extractApprovalId(event.payload);
+    const parsedPayload = parseBridgeEventPayload(event.event, event.payload);
+    if (!parsedPayload.ok) {
+      this.#log.warn(`[gw-event] invalid payload for ${event.event}: ${parsedPayload.error}`);
+      return;
+    }
 
-    for (const state of this.#clientStates.values()) {
-      if (sessionKey && state.sessionKey && sessionKey !== state.sessionKey) {
-        continue;
-      }
+    const payload = parsedPayload.payload;
+    const sessionKey = extractSessionKey(payload);
+    const approvalId = extractApprovalId(payload);
 
+    for (const state of this.#statesForGatewayEvent(sessionKey)) {
       if (event.event === 'session.message') {
-        this.#forwardSessionMessage(state, event.payload);
+        this.#forwardSessionMessage(state, payload);
       } else if (event.event === 'session.tool') {
-        this.#forwardSessionTool(state, event.payload);
+        this.#forwardSessionTool(state, payload);
       } else if (event.event === 'exec.approval.requested' && approvalId) {
+        this.#sendRunStatus(state, {
+          detail: { approvalId },
+          label: 'OpenClaw: aguardando aprovacao',
+          runId: extractRunId(payload) || state.activeRunId || undefined,
+          step: 'approval',
+        });
         this.#send(state.ws, {
           approvalId,
-          args: event.payload?.systemRunPlan || {
-            argv: event.payload?.argv,
-            command: event.payload?.command,
-            cwd: event.payload?.cwd,
-            rawCommand: event.payload?.rawCommand,
+          args: payload?.systemRunPlan || {
+            argv: payload?.argv,
+            command: payload?.command,
+            cwd: payload?.cwd,
+            rawCommand: payload?.rawCommand,
           },
           requestId: state.activeRequestId || undefined,
-          runId: extractRunId(event.payload) || state.activeRunId || undefined,
+          runId: extractRunId(payload) || state.activeRunId || undefined,
           toolCallId: approvalId,
           toolName: 'system.run',
           type: 'tool.approval.requested',
         });
       } else if (event.event === 'exec.approval.resolved' && approvalId) {
+        this.#sendRunStatus(state, {
+          detail: { approvalId },
+          label: 'OpenClaw: aprovacao respondida',
+          runId: extractRunId(payload) || state.activeRunId || undefined,
+          status: 'completed',
+          step: 'approval',
+        });
         this.#send(state.ws, {
           approvalId,
           requestId: state.activeRequestId || undefined,
-          runId: extractRunId(event.payload) || state.activeRunId || undefined,
+          runId: extractRunId(payload) || state.activeRunId || undefined,
           type: 'tool.approval.resolved',
         });
       }
     }
+  }
+
+  #markActiveOwner(state) {
+    if (state.sessionKey && state.clientId) {
+      this.#activeSessionOwners.set(state.sessionKey, state.clientId);
+    }
+  }
+
+  #clearActiveOwner(state, sessionKey = state.sessionKey) {
+    if (!sessionKey) {
+      return;
+    }
+    if (this.#activeSessionOwners.get(sessionKey) === state.clientId) {
+      this.#activeSessionOwners.delete(sessionKey);
+    }
+  }
+
+  #statesForGatewayEvent(sessionKey) {
+    if (!sessionKey) {
+      // Sem sessionKey nao podemos rotear com seguranca: dispatcher anterior
+      // fazia broadcast e vazava streams entre abas/clientes diferentes.
+      return [];
+    }
+
+    const ownerId = this.#activeSessionOwners.get(sessionKey);
+    if (ownerId) {
+      const owner = this.#clientStates.get(ownerId);
+      if (owner?.sessionKey === sessionKey) {
+        return [owner];
+      }
+      this.#activeSessionOwners.delete(sessionKey);
+    }
+
+    return [...this.#clientStates.values()].filter((state) => state.sessionKey === sessionKey);
   }
 
   #forwardSessionMessage(state, payload) {
@@ -430,8 +748,59 @@ export class BridgeWSServer {
       state.activeRunId = runId;
     }
 
+    const role = extractMessageRole(payload).toLowerCase();
+    const toolResult = extractToolResultMessagePayload(payload);
+    if (toolResult) {
+      if (state.activeToolCallId === toolResult.toolCallId) {
+        state.activeToolCallId = '';
+      }
+      this.#sendRunStatus(state, {
+        detail: { toolCallId: toolResult.toolCallId, toolName: toolResult.toolName },
+        label: 'OpenClaw: ferramenta concluiu',
+        runId,
+        status: 'completed',
+        step: 'tool',
+      });
+      this.#send(state.ws, {
+        ...toolResult,
+        requestId: state.activeRequestId || undefined,
+        runId,
+        status: 'completed',
+        type: 'tool.update',
+      });
+      return;
+    }
+
+    if (role && role !== 'assistant') {
+      return;
+    }
+
+    const toolCalls = extractToolCallPayloads(payload);
+    if (toolCalls.length > 0) {
+      for (const toolCall of toolCalls) {
+        state.activeToolCallId = toolCall.toolCallId;
+        this.#sendRunStatus(state, {
+          detail: { toolName: toolCall.toolName },
+          label: 'OpenClaw: executando ferramenta',
+          runId,
+          step: 'tool',
+        });
+        this.#send(state.ws, {
+          ...toolCall,
+          requestId: state.activeRequestId || undefined,
+          runId,
+          type: 'tool.update',
+        });
+      }
+    }
+
     const text = extractTextPayload(payload);
     if (text) {
+      this.#sendRunStatus(state, {
+        label: 'OpenClaw: recebendo resposta',
+        runId,
+        step: 'response',
+      });
       this.#send(state.ws, {
         delta: text,
         requestId: state.activeRequestId || undefined,
@@ -440,22 +809,51 @@ export class BridgeWSServer {
       });
     }
 
+    if (toolCalls.length > 0 && !text) {
+      return;
+    }
+
     if (isErrorPayload(payload)) {
+      const rawError = extractErrorMessage(payload) || 'Session error';
+      if (isModelHubApiKeyError(rawError)) {
+        void this.#config.handleAuthError?.({
+          error: rawError,
+          modelRef: state.modelRef || undefined,
+        });
+      }
+
+      this.#sendRunStatus(state, {
+        detail: rawError,
+        label: 'OpenClaw: erro na execucao',
+        runId,
+        status: 'error',
+        step: 'run',
+      });
       this.#send(state.ws, {
-        error: payload?.error?.message || payload?.error || 'Session error',
+        error: isModelHubApiKeyError(rawError)
+          ? 'A API Key do ModelHub esta ausente ou invalida. O CLI local pediu uma nova chave no terminal. Depois de atualizar, envie a mensagem novamente.'
+          : rawError,
         requestId: state.activeRequestId || undefined,
         runId,
         type: 'run.error',
       });
+      this.#clearActiveOwner(state);
       return;
     }
 
     if (isFinalPayload(payload)) {
+      this.#sendRunStatus(state, {
+        label: 'OpenClaw: execucao concluida',
+        runId,
+        status: 'completed',
+        step: 'run',
+      });
       this.#send(state.ws, {
         requestId: state.activeRequestId || undefined,
         runId,
         type: 'run.completed',
       });
+      this.#clearActiveOwner(state);
     }
   }
 
@@ -467,6 +865,12 @@ export class BridgeWSServer {
 
     const approvalId = extractApprovalId(payload);
     if (approvalId) {
+      this.#sendRunStatus(state, {
+        detail: { approvalId },
+        label: 'OpenClaw: aguardando aprovacao',
+        runId,
+        step: 'approval',
+      });
       this.#send(state.ws, {
         approvalId,
         args: payload?.systemRunPlan || payload?.args || payload?.arguments || {},
@@ -481,6 +885,13 @@ export class BridgeWSServer {
 
     const toolStart = extractToolStartPayload(payload);
     if (toolStart) {
+      state.activeToolCallId = toolStart.toolCallId;
+      this.#sendRunStatus(state, {
+        detail: { toolName: toolStart.toolName },
+        label: 'OpenClaw: executando ferramenta',
+        runId,
+        step: 'tool',
+      });
       this.#send(state.ws, {
         ...toolStart,
         requestId: state.activeRequestId || undefined,
@@ -491,6 +902,16 @@ export class BridgeWSServer {
 
     const toolResult = extractToolResultPayload(payload);
     if (toolResult) {
+      if (state.activeToolCallId === toolResult.toolCallId) {
+        state.activeToolCallId = '';
+      }
+      this.#sendRunStatus(state, {
+        detail: { toolCallId: toolResult.toolCallId },
+        label: 'OpenClaw: ferramenta concluiu',
+        runId,
+        status: 'completed',
+        step: 'tool',
+      });
       this.#send(state.ws, {
         ...toolResult,
         requestId: state.activeRequestId || undefined,
@@ -501,11 +922,18 @@ export class BridgeWSServer {
     }
 
     if (isFinalPayload(payload)) {
+      this.#sendRunStatus(state, {
+        label: 'OpenClaw: execucao concluida',
+        runId,
+        status: 'completed',
+        step: 'run',
+      });
       this.#send(state.ws, {
         requestId: state.activeRequestId || undefined,
         runId,
         type: 'run.completed',
       });
+      this.#clearActiveOwner(state);
     }
   }
 
@@ -514,9 +942,87 @@ export class BridgeWSServer {
     if (!state) {
       return;
     }
+    this.#clearActiveOwner(state);
     this.#clientStates.delete(clientId);
     if (state.subscriptionStop) {
-      await state.subscriptionStop();
+      try {
+        await state.subscriptionStop();
+      } catch (error) {
+        this.#log.debug?.(`[ws] Failed to unsubscribe session ${state.sessionKey}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      state.subscriptionStop = null;
+    }
+    if (state.sessionKey && !this.#hasLiveClientForSession(state.sessionKey)) {
+      this.#activeSessionOwners.delete(state.sessionKey);
+    }
+  }
+
+  #hasLiveClientForSession(sessionKey) {
+    for (const state of this.#clientStates.values()) {
+      if (state.sessionKey === sessionKey && state.ws.readyState === 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  #sendRunStatus(state, input) {
+    this.#send(state.ws, {
+      detail: input.detail,
+      label: input.label,
+      requestId: state.activeRequestId || input.requestId || undefined,
+      runId: input.runId || state.activeRunId || undefined,
+      status: input.status || 'running',
+      step: input.step,
+      type: 'run.status',
+    });
+  }
+
+  handleGatewayLogLine({ line, source } = {}) {
+    const failure = extractGatewayToolFailure(line);
+    if (!failure) {
+      return;
+    }
+
+    const errorMessage = `Falha da ferramenta OpenClaw: ${failure.message}`;
+    for (const state of this.#clientStates.values()) {
+      if (!state.activeRequestId) {
+        continue;
+      }
+      const toolCallId = state.activeToolCallId || `gateway-log:${randomUUID()}`;
+      const detail = {
+        args: failure.args,
+        message: failure.message,
+        source: source || 'gateway',
+      };
+
+      this.#sendRunStatus(state, {
+        detail,
+        label: 'OpenClaw: ferramenta falhou',
+        status: 'error',
+        step: 'tool',
+      });
+      this.#send(state.ws, {
+        requestId: state.activeRequestId || undefined,
+        result: detail,
+        runId: state.activeRunId || undefined,
+        status: 'error',
+        toolCallId,
+        toolName: 'tool',
+        type: 'tool.update',
+      });
+      this.#sendRunStatus(state, {
+        detail: errorMessage,
+        label: 'OpenClaw: erro na execucao',
+        status: 'error',
+        step: 'run',
+      });
+      this.#send(state.ws, {
+        error: errorMessage,
+        requestId: state.activeRequestId || undefined,
+        runId: state.activeRunId || undefined,
+        type: 'run.error',
+      });
     }
   }
 
@@ -546,6 +1052,11 @@ export class BridgeWSServer {
   }
 
   async close() {
+    if (this.#heartbeatTimer) {
+      clearInterval(this.#heartbeatTimer);
+      this.#heartbeatTimer = null;
+    }
+
     if (this.#globalGatewayUnsubscribe) {
       this.#globalGatewayUnsubscribe();
       this.#globalGatewayUnsubscribe = null;
@@ -564,5 +1075,6 @@ export class BridgeWSServer {
       this.#wss.close();
       this.#wss = null;
     }
+    this.#activeSessionOwners.clear();
   }
 }

@@ -21,13 +21,13 @@ function hasVercelAiGatewayKey(credentials?: Record<string, string>): boolean {
 }
 
 export const GATEWAY_MODELS: ProviderModel[] = [
-  { capabilities: { documents: true, images: false }, id: 'amazon/nova-lite', name: 'Nova Lite' },
-  { capabilities: { documents: true, images: false }, id: 'amazon/nova-micro', name: 'Nova Micro' },
-  { capabilities: { documents: true, images: true }, id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5' },
-  { capabilities: { documents: true, images: true }, id: 'google/gemini-3-flash', name: 'Gemini 3 Flash' },
-  { capabilities: { documents: true, images: false }, id: 'meta/llama-3.1-8b', name: 'Llama 3.1 8B Instruct' },
-  { capabilities: { documents: true, images: true }, id: 'openai/gpt-5-mini', name: 'GPT-5 mini' },
-  { capabilities: { documents: true, images: false }, id: 'openai/gpt-5-nano', name: 'GPT-5 nano' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'amazon/nova-lite', name: 'Nova Lite' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'amazon/nova-micro', name: 'Nova Micro' },
+  { capabilities: { documents: true, images: true, tools: true }, id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5' },
+  { capabilities: { documents: true, images: true, tools: true }, id: 'google/gemini-3-flash', name: 'Gemini 3 Flash' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'meta/llama-3.1-8b', name: 'Llama 3.1 8B Instruct' },
+  { capabilities: { documents: true, images: true, tools: true }, id: 'openai/gpt-5-mini', name: 'GPT-5 mini' },
+  { capabilities: { documents: true, images: false, tools: true }, id: 'openai/gpt-5-nano', name: 'GPT-5 nano' },
 ]
 
 export async function fetchGatewayModels(): Promise<ProviderModel[]> {
@@ -46,6 +46,7 @@ export async function fetchGatewayModels(): Promise<ProviderModel[]> {
         capabilities: {
           documents: m.capabilities?.documents ?? true,
           images: m.capabilities?.images ?? false,
+          tools: true,
         },
         id: m.id,
         name: m.name,
