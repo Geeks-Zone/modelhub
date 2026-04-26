@@ -3,9 +3,13 @@ import { DEFAULT_MODEL_ID } from "@/lib/defaults";
 const FALLBACK_BASE_URL = "https://www.modelhub.com.br";
 
 type OpenClawCommands = {
+  apiBaseUrl: string;
+  baseUrl: string;
   run: string;
   install: string;
   model: string;
+  modelRef: string;
+  models: (key?: string) => string;
   setup: (key?: string) => string;
   sync: (key?: string) => string;
   verify: (key?: string) => string;
@@ -25,10 +29,16 @@ function resolveBaseUrl(): string {
 
 export function useOpenClawCommands(apiKey: string | null | undefined = "SUA_API_KEY"): OpenClawCommands {
   const baseUrl = resolveBaseUrl();
+  const modelRef = `modelhub/${DEFAULT_MODEL_ID}`;
   return {
+    apiBaseUrl: `${baseUrl}/v1`,
+    baseUrl,
     run: "npx @model-hub/openclaw-cli run",
     install: "npm install -g openclaw@latest",
     model: `npx @model-hub/openclaw-cli use ${DEFAULT_MODEL_ID}`,
+    modelRef,
+    models: (key?: string) =>
+      `npx @model-hub/openclaw-cli models --base-url ${baseUrl} --api-key ${key ?? apiKey}`,
     setup: (key?: string) =>
       `npx @model-hub/openclaw-cli setup --base-url ${baseUrl} --api-key ${key ?? apiKey} --model ${DEFAULT_MODEL_ID}`,
     sync: (key?: string) =>

@@ -39,6 +39,7 @@ import {
   ShieldOffIcon,
   SparklesIcon,
   SquareIcon,
+  TerminalSquareIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   UserIcon,
@@ -48,6 +49,7 @@ import { toast } from "sonner";
 
 import { useAppState } from "@/components/app-state-provider";
 import { ChatHistorySidebar } from "@/components/chat/chat-history-sidebar";
+import { OpenClawGatewayGuideDialog } from "@/components/chat/openclaw-gateway-guide";
 import { SettingsDialog } from "@/components/chat/settings-dialog";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -309,7 +311,7 @@ function resolveModelSelectPlaceholder(input: {
 }
 
 export function ChatPage() {
-  const { credentials, providers, refreshCredentials } = useAppState();
+  const { credentials, providers, refreshCredentials, user } = useAppState();
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
@@ -331,6 +333,7 @@ export function ChatPage() {
 
   // Settings/personalization dialog
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [openClawGuideOpen, setOpenClawGuideOpen] = useState(false);
 
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
 
@@ -1833,6 +1836,17 @@ export function ChatPage() {
             <span className="hidden sm:inline">Personalizar</span>
           </Button>
 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0 text-xs"
+            onClick={() => setOpenClawGuideOpen(true)}
+            title="Usar o ModelHub como gateway no OpenClaw"
+          >
+            <TerminalSquareIcon className="size-3.5" />
+            <span>Usar no OpenClaw</span>
+          </Button>
+
           {activeConversationId && (
             <Button
               variant="ghost"
@@ -2492,6 +2506,11 @@ export function ChatPage() {
         </DialogContent>
       </Dialog>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <OpenClawGatewayGuideDialog
+        hasApiKey={(user?.counts?.activeApiKeys ?? 0) > 0}
+        open={openClawGuideOpen}
+        onOpenChange={setOpenClawGuideOpen}
+      />
       <OpenClawSetupDialog
         mode={openclaw.mode}
         onModeChange={openclaw.setMode}
