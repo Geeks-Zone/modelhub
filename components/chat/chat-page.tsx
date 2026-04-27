@@ -311,7 +311,7 @@ function resolveModelSelectPlaceholder(input: {
 }
 
 export function ChatPage() {
-  const { credentials, providers, refreshCredentials, user } = useAppState();
+  const { credentials, providers, refreshCredentials } = useAppState();
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
@@ -437,6 +437,19 @@ export function ChatPage() {
   const allowImageAttachments = selectedModel?.capabilities.images ?? false;
   const allowDocumentAttachments = selectedModel?.capabilities.documents ?? true;
   const composerHasUploadingAttachments = attachments.some((attachment) => attachment.status === "uploading");
+
+  const openClawGuideModelId = useMemo(() => {
+    if (!selectedProvider || !selectedModelId) return null;
+    if (selectedModelId.startsWith("modelhub/")) {
+      return selectedModelId.slice("modelhub/".length);
+    }
+    if (selectedProvider.id === OPENCLAW_PROVIDER_ID) {
+      // OpenClaw gateway-native models aren't served by the ModelHub catalog,
+      // so we can't reuse them in the OpenClaw → ModelHub setup commands.
+      return null;
+    }
+    return `${selectedProvider.id}/${selectedModelId}`;
+  }, [selectedProvider, selectedModelId]);
 
   useEffect(() => {
     if (providers.length === 0 || selectedProviderId) {
@@ -2507,7 +2520,9 @@ export function ChatPage() {
       </Dialog>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenClawGatewayGuideDialog
-        hasApiKey={(user?.counts?.activeApiKeys ?? 0) > 0}
+        currentModelId={openClawGuideModelId}
+        currentModelLabel={selectedModel?.name ?? null}
+        currentProviderLabel={selectedProvider?.label ?? null}
         open={openClawGuideOpen}
         onOpenChange={setOpenClawGuideOpen}
       />

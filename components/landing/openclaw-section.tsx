@@ -21,7 +21,7 @@ const steps: { description: string; id: StepId; label: string }[] = [
 
 export function OpenClawSection({ apiKey }: { apiKey?: string | null }) {
   const [activeStep, setActiveStep] = useState<StepId>("install");
-  const commands = useOpenClawCommands(apiKey);
+  const commands = useOpenClawCommands({ apiKey });
 
   return (
     <section className="border-y border-border/60 bg-muted/30 px-6 py-16 md:py-24">
