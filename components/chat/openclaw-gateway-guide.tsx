@@ -173,7 +173,7 @@ export function OpenClawGatewayGuideDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b px-5 pt-5 pb-4">
+        <DialogHeader className="shrink-0 border-b px-5 pt-5 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <TerminalSquareIcon className="size-4 text-muted-foreground" />
             Usar no OpenClaw
