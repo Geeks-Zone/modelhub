@@ -438,6 +438,19 @@ export function ChatPage() {
   const allowDocumentAttachments = selectedModel?.capabilities.documents ?? true;
   const composerHasUploadingAttachments = attachments.some((attachment) => attachment.status === "uploading");
 
+  const openClawGuideModelId = useMemo(() => {
+    if (!selectedProvider || !selectedModelId) return null;
+    if (selectedModelId.startsWith("modelhub/")) {
+      return selectedModelId.slice("modelhub/".length);
+    }
+    if (selectedProvider.id === OPENCLAW_PROVIDER_ID) {
+      // OpenClaw gateway-native models aren't served by the ModelHub catalog,
+      // so we can't reuse them in the OpenClaw → ModelHub setup commands.
+      return null;
+    }
+    return `${selectedProvider.id}/${selectedModelId}`;
+  }, [selectedProvider, selectedModelId]);
+
   useEffect(() => {
     if (providers.length === 0 || selectedProviderId) {
       return;
@@ -2507,6 +2520,9 @@ export function ChatPage() {
       </Dialog>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenClawGatewayGuideDialog
+        currentModelId={openClawGuideModelId}
+        currentModelLabel={selectedModel?.name ?? null}
+        currentProviderLabel={selectedProvider?.label ?? null}
         hasApiKey={(user?.counts?.activeApiKeys ?? 0) > 0}
         open={openClawGuideOpen}
         onOpenChange={setOpenClawGuideOpen}

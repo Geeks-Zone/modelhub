@@ -38,7 +38,7 @@ export function OpenClawWizard({
 }) {
   const [activeStep, setActiveStep] = useState<WizardStep>("install");
   const [activeOs, setActiveOs] = useState<OsTab>("macos");
-  const commands = useOpenClawCommands(apiKey);
+  const commands = useOpenClawCommands({ apiKey });
 
   return (
     <div className="space-y-5">

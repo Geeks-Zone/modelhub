@@ -13,6 +13,7 @@ import {
 
 import { CommandBlock } from "@/components/openclaw/command-block";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,17 +25,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { DEFAULT_MODEL_ID } from "@/lib/defaults";
 import { useOpenClawCommands } from "@/lib/use-openclaw-commands";
 
 type Props = {
+  readonly currentModelId: string | null;
+  readonly currentModelLabel: string | null;
+  readonly currentProviderLabel: string | null;
   readonly hasApiKey: boolean;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 };
 
-export function OpenClawGatewayGuideDialog({ hasApiKey, open, onOpenChange }: Props) {
-  const commands = useOpenClawCommands();
+export function OpenClawGatewayGuideDialog({
+  currentModelId,
+  currentModelLabel,
+  currentProviderLabel,
+  hasApiKey,
+  open,
+  onOpenChange,
+}: Props) {
+  const commands = useOpenClawCommands({ modelId: currentModelId });
+  const usingChatModel = Boolean(currentModelId);
   const configSnippet = `{
   "agents": {
     "defaults": {
@@ -52,8 +63,8 @@ export function OpenClawGatewayGuideDialog({ hasApiKey, open, onOpenChange }: Pr
         "baseUrl": "${commands.apiBaseUrl}",
         "models": [
           {
-            "id": "${DEFAULT_MODEL_ID}",
-            "name": "${DEFAULT_MODEL_ID}"
+            "id": "${commands.modelId}",
+            "name": "${commands.modelId}"
           }
         ]
       }
@@ -95,6 +106,27 @@ export function OpenClawGatewayGuideDialog({ hasApiKey, open, onOpenChange }: Pr
               </AlertDescription>
             </Alert>
           )}
+
+          {usingChatModel ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+              <Badge variant="secondary" className="shrink-0">
+                Vindo do chat
+              </Badge>
+              <span className="text-muted-foreground">
+                Os comandos abaixo configuram o OpenClaw com{" "}
+                <span className="font-medium text-foreground">
+                  {currentProviderLabel ?? "o provider atual"}
+                </span>
+                {currentModelLabel ? (
+                  <>
+                    {" · "}
+                    <span className="font-medium text-foreground">{currentModelLabel}</span>
+                  </>
+                ) : null}
+                .
+              </span>
+            </div>
+          ) : null}
 
           <div className="grid gap-2 sm:grid-cols-3">
             <InfoTile icon={<ServerIcon className="size-3.5" />} label="Servidor" value={commands.apiBaseUrl} />
