@@ -311,7 +311,7 @@ function resolveModelSelectPlaceholder(input: {
 }
 
 export function ChatPage() {
-  const { credentials, providers, refreshCredentials, user } = useAppState();
+  const { credentials, providers, refreshCredentials } = useAppState();
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
@@ -2523,7 +2523,6 @@ export function ChatPage() {
         currentModelId={openClawGuideModelId}
         currentModelLabel={selectedModel?.name ?? null}
         currentProviderLabel={selectedProvider?.label ?? null}
-        hasApiKey={(user?.counts?.activeApiKeys ?? 0) > 0}
         open={openClawGuideOpen}
         onOpenChange={setOpenClawGuideOpen}
       />
