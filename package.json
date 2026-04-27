@@ -65,7 +65,7 @@
     "@hono/zod-validator": "^0.7.6",
     "@neondatabase/auth": "0.2.0-beta.1",
     "@prisma/adapter-pg": "^7.7.0",
-    "@prisma/client": "^7.7.0",
+    "@prisma/client": "^7.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",
