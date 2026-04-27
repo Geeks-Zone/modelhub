@@ -11,12 +11,10 @@ import {
   PlusIcon,
   ServerIcon,
   TerminalSquareIcon,
-  TriangleAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CommandBlock } from "@/components/openclaw/command-block";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +29,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -141,7 +140,9 @@ export function OpenClawGatewayGuideDialog({
       ? `${selectedExisting.prefix}…`
       : "SUA_API_KEY";
 
-  const commands = useOpenClawCommands({ apiKey: activeRawKey, modelId: currentModelId });
+  const commandApiKey = activeRawKey || "SUA_API_KEY";
+
+  const commands = useOpenClawCommands({ apiKey: commandApiKey, modelId: currentModelId });
   const usingChatModel = Boolean(currentModelId);
   const configSnippet = `{
   "agents": {
@@ -156,7 +157,7 @@ export function OpenClawGatewayGuideDialog({
     "providers": {
       "modelhub": {
         "api": "openai-completions",
-        "apiKey": "${activeRawKey ?? "SUA_API_KEY"}",
+        "apiKey": "${commandApiKey}",
         "baseUrl": "${commands.apiBaseUrl}",
         "models": [
           {
@@ -169,120 +170,20 @@ export function OpenClawGatewayGuideDialog({
   }
 }`;
 
-  const noKeys = !loadingKeys && keys.length === 0;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b px-5 pt-5 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <TerminalSquareIcon className="size-4 text-muted-foreground" />
             Usar no OpenClaw
           </DialogTitle>
           <DialogDescription>
-            Configure o OpenClaw para usar o ModelHub como gateway OpenAI-compatible. O OpenClaw chama nosso servidor,
-            autentica com sua API key do ModelHub e usa os modelos do nosso catálogo.
+            Copie o comando abaixo para configurar automaticamente o OpenClaw e usar o ModelHub como gateway OpenAI-compatible. O OpenClaw acessará nosso servidor usando sua API key para listar e rodar modelos.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[calc(85vh-9.5rem)] space-y-5 overflow-y-auto px-5 py-4">
-          {noKeys ? (
-            <Alert variant="destructive">
-              <TriangleAlertIcon />
-              <AlertTitle>Você ainda não tem uma API key</AlertTitle>
-              <AlertDescription>
-                Gere uma chave abaixo para que o OpenClaw consiga autenticar no ModelHub.
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          <section className="space-y-3 rounded-lg border bg-card px-4 py-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Sua API key do ModelHub</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Selecione uma chave existente ou gere uma nova para esta integração.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={creatingKey}
-                onClick={() => void handleGenerateKey()}
-              >
-                {creatingKey ? (
-                  <Loader2Icon className="size-3.5 animate-spin" />
-                ) : (
-                  <PlusIcon className="size-3.5" />
-                )}
-                Gerar nova chave
-              </Button>
-            </div>
-
-            <Select
-              value={selectedKeyId}
-              onValueChange={(value) => {
-                setSelectedKeyId(value);
-                if (!generatedKey || value !== generatedKey.id) {
-                  setGeneratedKey(null);
-                }
-              }}
-              disabled={loadingKeys || keys.length === 0}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue
-                  placeholder={
-                    loadingKeys ? "Carregando chaves…" : keys.length === 0 ? "Nenhuma chave disponível" : "Selecionar chave"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {keys.map((k) => (
-                  <SelectItem key={k.id} value={k.id}>
-                    <span className="font-medium">{k.label || "(sem label)"}</span>
-                    <span className="ml-2 text-muted-foreground">{k.prefix}…</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {generatedKey && generatedKey.id === selectedKeyId ? (
-              <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-                <p className="text-xs font-medium text-foreground">
-                  Chave criada — salve agora, ela não é exibida novamente.
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-[11px]">
-                    {generatedKey.raw}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => copy("openclaw-guide-key", generatedKey.raw, "Chave copiada!")}
-                  >
-                    {copiedId === "openclaw-guide-key" ? (
-                      <CheckIcon className="size-3.5 text-emerald-500" />
-                    ) : (
-                      <CopyIcon className="size-3.5" />
-                    )}
-                    Copiar chave
-                  </Button>
-                </div>
-              </div>
-            ) : selectedExisting ? (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Os comandos abaixo mantêm <code className="rounded bg-muted px-1 py-0.5 text-[11px]">SUA_API_KEY</code>{" "}
-                como placeholder — substitua pela chave{" "}
-                <span className="font-medium text-foreground">{selectedExisting.label || "(sem label)"}</span>{" "}
-                (prefixo <code className="rounded bg-muted px-1 py-0.5 text-[11px]">{selectedExisting.prefix}…</code>).
-                Por segurança, só conseguimos mostrar o valor completo no momento da criação.
-              </p>
-            ) : null}
-          </section>
-
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
           {usingChatModel ? (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
               <Badge variant="secondary" className="shrink-0">
@@ -306,7 +207,24 @@ export function OpenClawGatewayGuideDialog({
 
           <div className="grid gap-2 sm:grid-cols-3">
             <InfoTile icon={<ServerIcon className="size-3.5" />} label="Servidor" value={commands.apiBaseUrl} />
-            <InfoTile icon={<KeyRoundIcon className="size-3.5" />} label="API key" value={apiKeyDisplay} />
+            <ApiKeyTile
+              activeRawKey={activeRawKey}
+              copiedId={copiedId}
+              creatingKey={creatingKey}
+              generatedKey={generatedKey}
+              keys={keys}
+              loadingKeys={loadingKeys}
+              selectedKeyId={selectedKeyId}
+              selectedKeyPrefix={apiKeyDisplay}
+              onCopyGeneratedKey={(raw) => copy("openclaw-guide-key", raw, "Chave copiada!")}
+              onGenerateKey={() => void handleGenerateKey()}
+              onSelectKey={(value) => {
+                setSelectedKeyId(value);
+                if (!generatedKey || value !== generatedKey.id) {
+                  setGeneratedKey(null);
+                }
+              }}
+            />
             <InfoTile
               icon={<TerminalSquareIcon className="size-3.5" />}
               label="Modelo OpenClaw"
@@ -373,7 +291,7 @@ export function OpenClawGatewayGuideDialog({
           </section>
         </div>
 
-        <DialogFooter className="m-0 rounded-none border-t bg-muted/40 px-5 py-3">
+        <DialogFooter className="m-0 shrink-0 bg-muted/50 px-5 py-3">
           <DialogClose asChild>
             <Button variant="ghost">Fechar</Button>
           </DialogClose>
@@ -386,6 +304,95 @@ export function OpenClawGatewayGuideDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ApiKeyTile({
+  activeRawKey,
+  copiedId,
+  creatingKey,
+  generatedKey,
+  keys,
+  loadingKeys,
+  selectedKeyId,
+  selectedKeyPrefix,
+  onCopyGeneratedKey,
+  onGenerateKey,
+  onSelectKey,
+}: {
+  readonly activeRawKey: string | null;
+  readonly copiedId: string | null;
+  readonly creatingKey: boolean;
+  readonly generatedKey: GeneratedKey | null;
+  readonly keys: ApiKeySummary[];
+  readonly loadingKeys: boolean;
+  readonly selectedKeyId: string;
+  readonly selectedKeyPrefix: string;
+  readonly onCopyGeneratedKey: (raw: string) => void;
+  readonly onGenerateKey: () => void;
+  readonly onSelectKey: (value: string) => void;
+}) {
+  const hasKeys = keys.length > 0;
+  const showingGeneratedKey = Boolean(activeRawKey && generatedKey?.id === selectedKeyId);
+
+  return (
+    <div className="min-w-0 rounded-lg border bg-muted/40 px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <KeyRoundIcon className="size-3.5" />
+          API key
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label="Gerar nova API key"
+          disabled={creatingKey || loadingKeys}
+          onClick={onGenerateKey}
+        >
+          {creatingKey ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+        </Button>
+      </div>
+
+      <Select value={selectedKeyId} onValueChange={onSelectKey} disabled={loadingKeys || !hasKeys}>
+        <SelectTrigger size="sm" className="mt-2 w-full min-w-0 bg-background text-xs">
+          <SelectValue
+            placeholder={loadingKeys ? "Carregando chaves..." : hasKeys ? "Selecionar chave" : "Nenhuma chave"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {keys.map((key) => (
+              <SelectItem key={key.id} value={key.id}>
+                <span className="min-w-0 truncate font-medium">{key.label || "(sem label)"}</span>
+                <span className="text-muted-foreground">{key.prefix}...</span>
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+
+      {showingGeneratedKey && activeRawKey ? (
+        <div className="mt-2 flex items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1.5">
+          <code className="min-w-0 flex-1 truncate text-[11px]" title={activeRawKey}>
+            {activeRawKey}
+          </code>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Copiar API key"
+            onClick={() => onCopyGeneratedKey(activeRawKey)}
+          >
+            {copiedId === "openclaw-guide-key" ? <CheckIcon /> : <CopyIcon />}
+          </Button>
+        </div>
+      ) : (
+        <code className="mt-2 block truncate text-xs text-foreground" title={selectedKeyPrefix}>
+          {selectedKeyPrefix}
+        </code>
+      )}
+    </div>
   );
 }
 
